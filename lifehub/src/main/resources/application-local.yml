@@ -1,0 +1,40 @@
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+  jpa:
+    open-in-view: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8081/auth/realms/finanzapp
+
+server:
+  port: 8080
+
+lifehub:
+  internal-base-url: http://localhost:8080
+  datasource:
+    user:
+      url: jdbc:postgresql://localhost:5437/lifehub?currentSchema=identity
+      username: lifehubuser
+      password: ${LIFEHUB_DB_PASSWORD:lifehub-local-pass}
+      driver-class-name: org.postgresql.Driver
+    movements:
+      url: jdbc:postgresql://localhost:5437/lifehub?currentSchema=movements
+      username: lifehubuser
+      password: ${LIFEHUB_DB_PASSWORD:lifehub-local-pass}
+      driver-class-name: org.postgresql.Driver
+    tags:
+      url: jdbc:postgresql://localhost:5437/lifehub?currentSchema=tags
+      username: lifehubuser
+      password: ${LIFEHUB_DB_PASSWORD:lifehub-local-pass}
+      driver-class-name: org.postgresql.Driver
+
+services:
+  internal-service-token: ${INTERNAL_SERVICE_TOKEN:local-internal-token}
+  tag-deletion-processor:
+    fixed-delay-ms: 5000
+    initial-delay-ms: 5000

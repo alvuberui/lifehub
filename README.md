@@ -33,10 +33,11 @@ Navegador
 Next.js + NextAuth (frontend, 3000)
    │ BFF /api/*; tokens en servidor
    ▼
-API Gateway (8080)
-   ├── /user/*      ──► user      ──► PostgreSQL userdb
-   ├── /movement/*  ──► movements  ──► PostgreSQL movementsdb
-   └── /tag/*       ──► tags       ──► PostgreSQL tagsdb
+LifeHub / FinanzApp (8080)
+   └── /user/*, /movement/*, /tag/*
+                                      ├── identity   ──► PostgreSQL lifehub.identity
+                                      ├── movements  ──► PostgreSQL lifehub.movements
+                                      └── tags       ──► PostgreSQL lifehub.tags
 
 Keycloak (8081) ──► PostgreSQL keycloak
 ```
@@ -46,10 +47,11 @@ Componentes:
 - **Frontend:** Next.js 16, React 19, TypeScript, NextAuth, Tailwind y
   Recharts.
 - **Identidad:** Keycloak mediante OpenID Connect Authorization Code + PKCE.
-- **Gateway:** Spring Cloud Gateway, punto de entrada HTTP de la aplicación.
-- **Backend:** `apigateway`, `user`, `movements` y `tags` como servicios
-  Spring Boot independientes.
-- **Persistencia:** PostgreSQL 16, una base de datos por servicio.
+- **Backend HTTP:** LifeHub, punto de entrada HTTP de la aplicación.
+- **Backend:** `lifehub` como monolito modular Spring Boot. `identity`,
+  `movements` y `tags` son módulos internos de LifeHub/FinanzApp.
+- **Persistencia:** PostgreSQL 16 en dos instancias: una para Keycloak y otra
+  para LifeHub, con los esquemas `identity`, `movements` y `tags`.
 - **Esquema:** Flyway; Hibernate utiliza `ddl-auto: validate` y no modifica
   automáticamente las tablas.
 
@@ -79,7 +81,7 @@ El script:
 2. Levanta PostgreSQL y Keycloak en Docker.
 3. Crea o actualiza el realm local `finanzapp`.
 4. Crea el cliente de NextAuth y un usuario de desarrollo.
-5. Arranca los cuatro microservicios con perfil `local`.
+5. Compila y arranca el monolito modular `lifehub` con perfil `local`.
 6. Crea `.env.local` del frontend si no existe.
 7. Instala dependencias si todavía no existe `node_modules`.
 8. Arranca Next.js.
@@ -104,7 +106,7 @@ La parada utiliza `docker compose down`, nunca `docker compose down -v`.
 Durante el desarrollo, el frontend se actualiza automáticamente mediante
 Next.js. El lanzador también mantiene un observador del backend: al detectar
 cambios en Java o en `src/main/resources`, recompila únicamente el servicio
-afectado y Spring DevTools lo reinicia. Normalmente no hay que relanzar nada;
+afectado (`lifehub`). Normalmente no hay que relanzar nada;
 solo esperar unos segundos a que termine la compilación.
 
 Los logs del observador están en `infra/.local/logs/backend-watcher.out.log`.
@@ -131,11 +133,8 @@ ejecutar:
 
 ```powershell
 cd infra
-docker compose --env-file .env up -d `
-  postgres-keycloak `
-  postgres-user `
-  postgres-movements `
-  postgres-tags `
+docker compose --env-file .env -f docker-compose.local.yml up -d `
+  postgres `
   keycloak
 ```
 
@@ -144,40 +143,18 @@ NextAuth y un usuario en Keycloak.
 
 ### Backend
 
-Abrir una terminal por servicio:
+El modo recomendado es `infra\start-local.ps1`, que arranca LifeHub con las
+mismas rutas externas de siempre. Para una ejecucion manual:
 
 ```powershell
-cd apigateway
-$env:SPRING_PROFILES_ACTIVE="local"
-.\mvnw.cmd spring-boot:run
+.\mvnw.cmd -f .\pom.xml -pl lifehub -am package -DskipTests
+java -jar .\lifehub\target\lifehub-0.0.1-SNAPSHOT.jar
 ```
 
-```powershell
-cd user
-$env:SPRING_PROFILES_ACTIVE="local"
-$env:USER_DB_PASSWORD="authpass"
-.\mvnw.cmd spring-boot:run
-```
-
-```powershell
-cd movements
-$env:SPRING_PROFILES_ACTIVE="local"
-$env:MOVEMENTS_DB_PASSWORD="movementspass"
-$env:INTERNAL_SERVICE_TOKEN="local-internal-token"
-.\mvnw.cmd spring-boot:run
-```
-
-```powershell
-cd tags
-$env:SPRING_PROFILES_ACTIVE="local"
-$env:TAGS_DB_PASSWORD="tagspass"
-$env:INTERNAL_SERVICE_TOKEN="local-internal-token"
-.\mvnw.cmd spring-boot:run
-```
 
 ### Frontend
 
-Desde `finanzappv3-frontend`:
+Desde `lifehub-frontend`:
 
 ```powershell
 Copy-Item .env.example .env.local
@@ -190,16 +167,13 @@ npm run dev
 | Componente | Puerto local | Expuesto directamente en producción |
 |---|---:|---|
 | Frontend Next.js | `3000` | Según el proxy inverso |
-| API Gateway | `8080` | Sí, detrás del proxy |
+| LifeHub | `8080` | Sí, detrás del proxy |
 | Keycloak | `8081` | Sí, bajo `/auth` y HTTPS |
-| User | `8085` | No |
-| Movements | `8082` | No |
-| Tags | `8084` | No |
-| PostgreSQL user | `5435` | No |
-| PostgreSQL movements | `5434` | No |
-| PostgreSQL tags | `5436` | No |
+| LifeHub (FinanzApp modular) | `8080` | Sí, detrás del proxy |
+| PostgreSQL LifeHub | `5437` | No |
+| PostgreSQL Keycloak | Interno Docker | No |
 
-En producción, los microservicios y las bases de datos solo deben ser
+En producción, LifeHub y las bases de datos solo deben ser
 accesibles dentro de la red Docker.
 
 ## Configuración
@@ -219,16 +193,17 @@ Variables de `infra/.env`:
 | `KEYCLOAK_ADMIN` | Administrador inicial de Keycloak |
 | `KEYCLOAK_ADMIN_PASSWORD` | Contraseña inicial de Keycloak |
 | `KEYCLOAK_HOSTNAME` | Host anunciado por Keycloak |
-| `USER_DB_PASSWORD` | Contraseña de `userdb` |
-| `MOVEMENTS_DB_PASSWORD` | Contraseña de `movementsdb` |
-| `TAGS_DB_PASSWORD` | Contraseña de `tagsdb` |
-| `INTERNAL_SERVICE_TOKEN` | Token privado entre `tags` y `movements` |
+| `LIFEHUB_DB_PASSWORD` | Contraseña local de `lifehub` (opcional; tiene valor por defecto local) |
+| `USER_DB_PASSWORD` | Contraseña legacy de `userdb` |
+| `MOVEMENTS_DB_PASSWORD` | Contraseña legacy de `movementsdb` |
+| `TAGS_DB_PASSWORD` | Contraseña legacy de `tagsdb` |
+| `INTERNAL_SERVICE_TOKEN` | Token privado para la ruta interna de etiquetas |
 
 `infra/.env` y `infra/.env.local` no deben subirse al repositorio.
 
 ### Frontend
 
-Variables de `finanzappv3-frontend/.env.local`:
+Variables de `lifehub-frontend/.env.local`:
 
 ```env
 API_GATEWAY_URL=http://localhost:8080
@@ -248,26 +223,27 @@ El sistema utiliza PostgreSQL para la aplicación. H2 se utiliza únicamente en
 tests concretos.
 
 - `keycloak`: usuarios, clientes y configuración de Keycloak.
-- `userdb`: perfil financiero y configuración del usuario.
-- `movementsdb`: ingresos, gastos, inversiones y operaciones pendientes de
-  borrado de etiquetas.
-- `tagsdb`: etiquetas y operaciones reintentables de borrado.
+- `lifehub.identity`: perfiles y configuración de usuarios.
+- `lifehub.movements`: ingresos, gastos e inversiones.
+- `lifehub.tags`: etiquetas y operaciones reintentables de borrado.
 
-En local, Docker mantiene los datos en volúmenes del proyecto Compose
-`finanzapp-local`.
+En local, Docker mantiene `keycloak` en la instancia `postgres-keycloak` y
+`lifehub` en la instancia `postgres-lifehub`, ambas dentro del proyecto Compose
+`finanzapp-local`. Las bases antiguas y sus volúmenes se conservan como
+respaldo de rollback.
 
 Reglas de seguridad de datos:
 
 - No utilizar `docker compose down -v` salvo que se quiera borrar el entorno.
 - No borrar volúmenes para resolver errores de arranque.
-- Antes de desplegar cambios de esquema en remoto, hacer backup de las tres
-  bases de datos de aplicación y de Keycloak.
+- Antes de desplegar cambios de esquema en remoto, hacer backup de la base de
+  datos de LifeHub y de la base de datos de Keycloak.
 - En una instalación existente, las contraseñas de `.env` deben coincidir con
   las contraseñas reales de los usuarios PostgreSQL ya inicializados.
 
 ## API principal
 
-Todas las rutas pasan por el gateway y requieren JWT válido salvo los endpoints
+Todas las rutas de LifeHub requieren JWT válido salvo los endpoints
 de salud.
 
 ### Usuarios
@@ -301,7 +277,7 @@ operaciones batch.
 
 ### Salud
 
-El gateway permite públicamente:
+LifeHub permite públicamente:
 
 ```text
 /actuator/health
@@ -327,10 +303,10 @@ ahorros.
 
 El borrado entre `tags` y `movements` es reintentable:
 
-1. `tags` marca la etiqueta como eliminada y registra una operación pendiente.
+1. El modulo de etiquetas marca la etiqueta como eliminada y registra una operacion pendiente.
 2. Un procesador intenta desasociarla de los movimientos.
 3. Si termina correctamente, se elimina la etiqueta y se completa la operación.
-4. Si el otro servicio no está disponible, se aplica reintento con espera
+4. Si la limpieza interna no está disponible, se aplica reintento con espera
    creciente.
 
 La comunicación interna requiere `INTERNAL_SERVICE_TOKEN` y no debe exponerse
@@ -342,7 +318,7 @@ al frontend.
 - NextAuth conserva los tokens sensibles en una sesión JWT HttpOnly del
   servidor.
 - El frontend funciona como BFF y no entrega el access token al navegador.
-- Gateway y microservicios validan JWT como OAuth2 Resource Server.
+- LifeHub valida JWT como OAuth2 Resource Server.
 - La identidad se deriva del JWT, no de emails enviados por el cliente.
 - Las rutas internas de borrado requieren el token privado de servicio.
 - Los secretos se suministran mediante variables de entorno.
@@ -350,17 +326,10 @@ al frontend.
 
 ## Pruebas
 
-Cada servicio backend es un proyecto Maven independiente:
+El backend se valida como un reactor Maven, que incluye el monolito modular y los modulos de FinanzApp:
 
 ```powershell
-cd user
-.\mvnw.cmd test
-cd ..\movements
-.\mvnw.cmd test
-cd ..\tags
-.\mvnw.cmd test
-cd ..\apigateway
-.\mvnw.cmd test
+.\mvnw.cmd -f .\pom.xml test
 ```
 
 Validaciones del frontend:
@@ -373,7 +342,7 @@ npm run build
 npm audit --omit=dev --audit-level=high
 ```
 
-GitHub Actions ejecuta los tests de los cuatro servicios backend y las
+GitHub Actions ejecuta los tests del reactor modular, ademas de las
 validaciones de lint, build y auditoría del frontend.
 
 ## Despliegue remoto
@@ -393,7 +362,7 @@ Antes de actualizar una instalación existente:
 1. Hacer backup de `userdb`, `movementsdb`, `tagsdb` y Keycloak.
 2. Conservar los volúmenes Docker existentes.
 3. Comprobar que `.env` contiene las contraseñas actuales.
-4. Verificar que `INTERNAL_SERVICE_TOKEN` es igual en `tags` y `movements`.
+4. Verificar que `INTERNAL_SERVICE_TOKEN` coincide con el configurado para LifeHub.
 5. No ejecutar `down -v`.
 6. Revisar los logs si Flyway o Hibernate detectan incompatibilidades.
 

@@ -1,0 +1,40 @@
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+  jpa:
+    open-in-view: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://finanzapp.ddns.net/auth/realms/finanzapp
+
+server:
+  port: 8080
+
+lifehub:
+  internal-base-url: ${LIFEHUB_INTERNAL_BASE_URL:http://localhost:8080}
+  datasource:
+    user:
+      url: jdbc:postgresql://postgres-user:5432/userdb
+      username: useruser
+      password: ${USER_DB_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+    movements:
+      url: jdbc:postgresql://postgres-movements:5432/movementsdb
+      username: movementsuser
+      password: ${MOVEMENTS_DB_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+    tags:
+      url: jdbc:postgresql://postgres-tags:5432/tagsdb
+      username: tagsuser
+      password: ${TAGS_DB_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+
+services:
+  internal-service-token: ${INTERNAL_SERVICE_TOKEN}
+  tag-deletion-processor:
+    fixed-delay-ms: 5000
+    initial-delay-ms: 5000

@@ -13,10 +13,9 @@ los datos de PostgreSQL.
    `kcdata`. No uses `docker compose down -v`.
 3. Crea `infra/.env` a partir de `.env.example`.
 
-La variable `INTERNAL_SERVICE_TOKEN` debe ser un valor aleatorio largo y se
-comparte únicamente entre los contenedores `tags` y `movements`. Se utiliza
-para completar de forma segura la limpieza reintentable de etiquetas; no es un
-token de usuario y nunca debe exponerse al frontend.
+La variable `INTERNAL_SERVICE_TOKEN` debe ser un valor aleatorio largo. LifeHub
+la utiliza para proteger la ruta interna de limpieza reintentable de etiquetas;
+no es un token de usuario y nunca debe exponerse al frontend.
 
 ## Primera actualización de una instalación ya existente
 

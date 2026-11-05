@@ -1,0 +1,36 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:9999/realms/test
+
+lifehub:
+  internal-base-url: http://localhost:8080
+  flyway:
+    enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  datasource:
+    user:
+      url: jdbc:h2:mem:lifehub_user;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS identity
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
+    movements:
+      url: jdbc:h2:mem:lifehub_movements;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS movements
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
+    tags:
+      url: jdbc:h2:mem:lifehub_tags;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS tags
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
+
+services:
+  internal-service-token: test-internal-token
+  tag-deletion-processor:
+    fixed-delay-ms: 60000
+    initial-delay-ms: 60000
