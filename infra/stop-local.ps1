@@ -15,7 +15,7 @@ if (Test-Path $ProcessFile) {
 # También encuentra procesos antiguos si el lanzador anterior se cerró antes
 # de actualizar processes.json. Solo coincide con las aplicaciones FinanzApp.
 $processIds += @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-    ($_.Name -eq "java.exe" -and $_.CommandLine -match "com\.finanzapp\.(user|movements|tags|apigateway)\.[A-Za-z0-9]+Application") -or
+    ($_.Name -eq "java.exe" -and $_.CommandLine -match "lifehub-0\.0\.1-SNAPSHOT\.jar") -or
     ($_.Name -eq "cmd.exe" -and $_.CommandLine -match "mvnw\.cmd spring-boot:run") -or
     ($_.CommandLine -match "watch-local\.ps1") -or
     ($_.Name -eq "node.exe" -and $_.CommandLine -match "finanzappv3-frontend")

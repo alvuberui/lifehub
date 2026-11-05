@@ -238,29 +238,35 @@ $commonEnvironment = @{
     SPRING_PROFILES_ACTIVE = "local"
 }
 
-$processes += Start-LocalProcess `
-    -Name "apigateway" `
-    -WorkingDirectory (Join-Path $BackendRoot "apigateway") `
-    -Environment $commonEnvironment `
-    -CommandLine ('"{0}" spring-boot:run' -f (Join-Path $BackendRoot "apigateway\mvnw.cmd"))
+Write-Host "Compilando LifeHub y sus mÃ³dulos de FinanzApp..."
+Push-Location $BackendRoot
+try {
+    & (Join-Path $BackendRoot "mvnw.cmd") -f (Join-Path $BackendRoot "pom.xml") -pl lifehub -am package -DskipTests
+    if ($LASTEXITCODE -ne 0) {
+        throw "La compilaciÃ³n de LifeHub ha fallado."
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "La compilaciÃ³n del API Gateway ha fallado."
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "La compilaciÃ³n de LifeHub ha fallado."
+    }
+} finally {
+    Pop-Location
+}
 
 $processes += Start-LocalProcess `
-    -Name "user" `
-    -WorkingDirectory (Join-Path $BackendRoot "user") `
-    -Environment (@{ SPRING_PROFILES_ACTIVE = "local"; USER_DB_PASSWORD = $UserDbPassword }) `
-    -CommandLine ('"{0}" spring-boot:run' -f (Join-Path $BackendRoot "user\mvnw.cmd"))
-
-$processes += Start-LocalProcess `
-    -Name "movements" `
-    -WorkingDirectory (Join-Path $BackendRoot "movements") `
-    -Environment (@{ SPRING_PROFILES_ACTIVE = "local"; MOVEMENTS_DB_PASSWORD = $MovementsDbPassword; INTERNAL_SERVICE_TOKEN = $InternalServiceToken }) `
-    -CommandLine ('"{0}" spring-boot:run' -f (Join-Path $BackendRoot "movements\mvnw.cmd"))
-
-$processes += Start-LocalProcess `
-    -Name "tags" `
-    -WorkingDirectory (Join-Path $BackendRoot "tags") `
-    -Environment (@{ SPRING_PROFILES_ACTIVE = "local"; TAGS_DB_PASSWORD = $TagsDbPassword; INTERNAL_SERVICE_TOKEN = $InternalServiceToken }) `
-    -CommandLine ('"{0}" spring-boot:run' -f (Join-Path $BackendRoot "tags\mvnw.cmd"))
+    -Name "lifehub" `
+    -WorkingDirectory (Join-Path $BackendRoot "lifehub") `
+    -Environment (@{
+        SPRING_PROFILES_ACTIVE = "local"
+        USER_DB_PASSWORD = $UserDbPassword
+        MOVEMENTS_DB_PASSWORD = $MovementsDbPassword
+        TAGS_DB_PASSWORD = $TagsDbPassword
+        INTERNAL_SERVICE_TOKEN = $InternalServiceToken
+        LIFEHUB_INTERNAL_BASE_URL = "http://localhost:8080"
+    }) `
+    -CommandLine ('java -jar "{0}"' -f (Join-Path $BackendRoot "lifehub\target\lifehub-0.0.1-SNAPSHOT.jar"))
 
 $processes += Start-LocalProcess `
     -Name "backend-watcher" `

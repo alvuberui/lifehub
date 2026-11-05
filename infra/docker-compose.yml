@@ -108,70 +108,32 @@ services:
       timeout: 5s
       retries: 10
 
-  apigateway:
+  lifehub:
     build:
-      context: ../apigateway
-    image: finanzapp-apigateway:local
+      context: ..
+      dockerfile: Dockerfile
+    image: finanzapp-lifehub:local
     ports:
       - "127.0.0.1:8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+      USER_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
+      MOVEMENTS_DB_PASSWORD: ${MOVEMENTS_DB_PASSWORD:?MOVEMENTS_DB_PASSWORD is required}
+      TAGS_DB_PASSWORD: ${TAGS_DB_PASSWORD:?TAGS_DB_PASSWORD is required}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?INTERNAL_SERVICE_TOKEN is required}
+      LIFEHUB_INTERNAL_BASE_URL: http://lifehub:8080
     restart: unless-stopped
     networks: [internal]
-    mem_limit: 512m
-    cpus: 0.75
+    mem_limit: 768m
+    cpus: 1.0
     depends_on:
       keycloak:
         condition: service_started
-
-  user:
-    build:
-      context: ../user
-    image: finanzapp-user:local
-    environment:
-      SPRING_PROFILES_ACTIVE: prod
-      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
-      USER_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
-    restart: unless-stopped
-    networks: [internal]
-    mem_limit: 384m
-    cpus: 0.5
-    depends_on:
       postgres-user:
         condition: service_healthy
-
-  movements:
-    build:
-      context: ../movements
-    image: finanzapp-movements:local
-    environment:
-      SPRING_PROFILES_ACTIVE: prod
-      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
-      MOVEMENTS_DB_PASSWORD: ${MOVEMENTS_DB_PASSWORD:?MOVEMENTS_DB_PASSWORD is required}
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?INTERNAL_SERVICE_TOKEN is required}
-    restart: unless-stopped
-    networks: [internal]
-    mem_limit: 384m
-    cpus: 0.5
-    depends_on:
       postgres-movements:
         condition: service_healthy
-
-  tags:
-    build:
-      context: ../tags
-    image: finanzapp-tags:local
-    environment:
-      SPRING_PROFILES_ACTIVE: prod
-      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
-      TAGS_DB_PASSWORD: ${TAGS_DB_PASSWORD:?TAGS_DB_PASSWORD is required}
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?INTERNAL_SERVICE_TOKEN is required}
-    restart: unless-stopped
-    networks: [internal]
-    mem_limit: 384m
-    cpus: 0.5
-    depends_on:
       postgres-tags:
         condition: service_healthy
 
