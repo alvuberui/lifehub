@@ -18,10 +18,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(
         scanBasePackages = {
                 "com.finanzapp.lifehub",
-                "com.finanzapp.user.controller",
-                "com.finanzapp.user.service",
-                "com.finanzapp.user.repository",
-                "com.finanzapp.user.exception",
                 "com.finanzapp.movements.controller",
                 "com.finanzapp.movements.service",
                 "com.finanzapp.movements.repository",

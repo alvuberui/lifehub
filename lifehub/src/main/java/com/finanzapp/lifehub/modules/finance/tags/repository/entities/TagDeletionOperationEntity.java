@@ -8,6 +8,7 @@ import java.time.Instant;
 @Entity
 @Table(
         name = "tag_deletion_operations",
+        schema = "tags",
         uniqueConstraints = @UniqueConstraint(
                 name = "uk_tag_deletion_operation_tag_user",
                 columnNames = {"tag_id", "user_email"}

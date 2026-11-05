@@ -35,9 +35,9 @@ Next.js + NextAuth (frontend, 3000)
    ▼
 LifeHub / FinanzApp (8080)
    └── /user/*, /movement/*, /tag/*
-                                      ├── módulo user      ──► PostgreSQL userdb
-                                      ├── módulo movements ──► PostgreSQL movementsdb
-                                      └── módulo tags      ──► PostgreSQL tagsdb
+                                      ├── identity   ──► PostgreSQL lifehub.identity
+                                      ├── movements  ──► PostgreSQL lifehub.movements
+                                      └── tags       ──► PostgreSQL lifehub.tags
 
 Keycloak (8081) ──► PostgreSQL keycloak
 ```
@@ -48,9 +48,10 @@ Componentes:
   Recharts.
 - **Identidad:** Keycloak mediante OpenID Connect Authorization Code + PKCE.
 - **Backend HTTP:** LifeHub, punto de entrada HTTP de la aplicación.
-- **Backend:** `lifehub` como monolito modular Spring Boot. `user`,
-  `movements` y `tags` son módulos internos de FinanzApp.
-- **Persistencia:** PostgreSQL 16, una base de datos por módulo de FinanzApp.
+- **Backend:** `lifehub` como monolito modular Spring Boot. `identity`,
+  `movements` y `tags` son módulos internos de LifeHub/FinanzApp.
+- **Persistencia:** PostgreSQL 16 en dos instancias: una para Keycloak y otra
+  para LifeHub, con los esquemas `identity`, `movements` y `tags`.
 - **Esquema:** Flyway; Hibernate utiliza `ddl-auto: validate` y no modifica
   automáticamente las tablas.
 
@@ -132,11 +133,8 @@ ejecutar:
 
 ```powershell
 cd infra
-docker compose --env-file .env up -d `
-  postgres-keycloak `
-  postgres-user `
-  postgres-movements `
-  postgres-tags `
+docker compose --env-file .env -f docker-compose.local.yml up -d `
+  postgres `
   keycloak
 ```
 
@@ -156,7 +154,7 @@ java -jar .\lifehub\target\lifehub-0.0.1-SNAPSHOT.jar
 
 ### Frontend
 
-Desde `finanzappv3-frontend`:
+Desde `lifehub-frontend`:
 
 ```powershell
 Copy-Item .env.example .env.local
@@ -172,9 +170,8 @@ npm run dev
 | LifeHub | `8080` | Sí, detrás del proxy |
 | Keycloak | `8081` | Sí, bajo `/auth` y HTTPS |
 | LifeHub (FinanzApp modular) | `8080` | Sí, detrás del proxy |
-| PostgreSQL user | `5435` | No |
-| PostgreSQL movements | `5434` | No |
-| PostgreSQL tags | `5436` | No |
+| PostgreSQL LifeHub | `5437` | No |
+| PostgreSQL Keycloak | Interno Docker | No |
 
 En producción, LifeHub y las bases de datos solo deben ser
 accesibles dentro de la red Docker.
@@ -196,16 +193,17 @@ Variables de `infra/.env`:
 | `KEYCLOAK_ADMIN` | Administrador inicial de Keycloak |
 | `KEYCLOAK_ADMIN_PASSWORD` | Contraseña inicial de Keycloak |
 | `KEYCLOAK_HOSTNAME` | Host anunciado por Keycloak |
-| `USER_DB_PASSWORD` | Contraseña de `userdb` |
-| `MOVEMENTS_DB_PASSWORD` | Contraseña de `movementsdb` |
-| `TAGS_DB_PASSWORD` | Contraseña de `tagsdb` |
+| `LIFEHUB_DB_PASSWORD` | Contraseña local de `lifehub` (opcional; tiene valor por defecto local) |
+| `USER_DB_PASSWORD` | Contraseña legacy de `userdb` |
+| `MOVEMENTS_DB_PASSWORD` | Contraseña legacy de `movementsdb` |
+| `TAGS_DB_PASSWORD` | Contraseña legacy de `tagsdb` |
 | `INTERNAL_SERVICE_TOKEN` | Token privado para la ruta interna de etiquetas |
 
 `infra/.env` y `infra/.env.local` no deben subirse al repositorio.
 
 ### Frontend
 
-Variables de `finanzappv3-frontend/.env.local`:
+Variables de `lifehub-frontend/.env.local`:
 
 ```env
 API_GATEWAY_URL=http://localhost:8080
@@ -225,20 +223,21 @@ El sistema utiliza PostgreSQL para la aplicación. H2 se utiliza únicamente en
 tests concretos.
 
 - `keycloak`: usuarios, clientes y configuración de Keycloak.
-- `userdb`: perfil financiero y configuración del usuario.
-- `movementsdb`: ingresos, gastos, inversiones y operaciones pendientes de
-  borrado de etiquetas.
-- `tagsdb`: etiquetas y operaciones reintentables de borrado.
+- `lifehub.identity`: perfiles y configuración de usuarios.
+- `lifehub.movements`: ingresos, gastos e inversiones.
+- `lifehub.tags`: etiquetas y operaciones reintentables de borrado.
 
-En local, Docker mantiene los datos en volúmenes del proyecto Compose
-`finanzapp-local`.
+En local, Docker mantiene `keycloak` en la instancia `postgres-keycloak` y
+`lifehub` en la instancia `postgres-lifehub`, ambas dentro del proyecto Compose
+`finanzapp-local`. Las bases antiguas y sus volúmenes se conservan como
+respaldo de rollback.
 
 Reglas de seguridad de datos:
 
 - No utilizar `docker compose down -v` salvo que se quiera borrar el entorno.
 - No borrar volúmenes para resolver errores de arranque.
-- Antes de desplegar cambios de esquema en remoto, hacer backup de las tres
-  bases de datos de aplicación y de Keycloak.
+- Antes de desplegar cambios de esquema en remoto, hacer backup de la base de
+  datos de LifeHub y de la base de datos de Keycloak.
 - En una instalación existente, las contraseñas de `.env` deben coincidir con
   las contraseñas reales de los usuarios PostgreSQL ya inicializados.
 

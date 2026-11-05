@@ -1,8 +1,8 @@
 # LifeHub backend modular
 
 LifeHub es el unico backend de la aplicacion. FinanzApp es su primer modulo
-funcional y contiene dentro de `modules/finance` toda la implementacion de
-usuarios, movimientos y etiquetas.
+funcional; los perfiles de usuario viven en `modules/identity` y los dominios
+financieros en `modules/finance`.
 
 ## Estructura
 
@@ -10,8 +10,8 @@ usuarios, movimientos y etiquetas.
 com.finanzapp.lifehub
 `-- modules
     |-- core       # capacidades transversales futuras
-    `-- finance    # FinanzApp completa
-        |-- user
+    |-- identity   # identidad y perfil de usuario
+    `-- finance    # dominios financieros
         |-- movements
         `-- tags
 ```
@@ -19,17 +19,18 @@ com.finanzapp.lifehub
 Las rutas publicas se mantienen sin cambios:
 
 ```text
-/user/**      -> modulo Finance / users
+/user/**      -> modulo Identity / users
 /movement/**  -> modulo Finance / movements
 /tag/**       -> modulo Finance / tags
 ```
 
 ## Persistencia
 
-Para conservar el comportamiento y los datos actuales, se mantienen tres bases
-PostgreSQL independientes: `userdb`, `movementsdb` y `tagsdb`. Cada una tiene su
-propio `DataSource`, contexto JPA, gestor de transacciones y migraciones Flyway.
-No se ejecuta ninguna migracion de datos ni se unifican las bases.
+Para conservar el comportamiento y los datos actuales, se usan dos instancias
+PostgreSQL: una exclusiva para Keycloak y otra para la base `lifehub`. Dentro de
+`lifehub`, los módulos usan los esquemas `identity`, `movements` y `tags`. Las
+bases antiguas `userdb`, `movementsdb` y `tagsdb` se conservan temporalmente
+como rollback y ya no reciben conexiones de la aplicación.
 
 ## Arranque local
 
@@ -40,9 +41,10 @@ Desde la raiz del backend:
 java -jar lifehub\target\lifehub-0.0.1-SNAPSHOT.jar
 ```
 
-Con el perfil local, LifeHub escucha en `http://localhost:8080`. Las bases
-PostgreSQL locales deben estar disponibles en `5435` (`userdb`), `5434`
-(`movementsdb`) y `5436` (`tagsdb`), y Keycloak en `8081`.
+Con el perfil local, LifeHub escucha en `http://localhost:8080`. La instancia
+PostgreSQL de LifeHub está disponible en `5437` y contiene `lifehub`; sus
+esquemas son `identity`, `movements` y `tags`. Keycloak usa otra instancia
+PostgreSQL interna y está en `8081`.
 
 ## Pruebas
 
@@ -55,6 +57,7 @@ Las pruebas usan tres bases H2 temporales y no tocan PostgreSQL.
 ## Docker y despliegue
 
 El servicio `lifehub` es el unico backend de `infra/docker-compose.yml` y
-expone directamente el puerto `8080`. Los volumenes PostgreSQL existentes se
-conservan y las migraciones originales se mantienen sin cambios para que Flyway
-valide sus checksums.
+expone directamente el puerto `8080`. La instancia PostgreSQL usa el volumen
+`postgres_data`; los volúmenes anteriores se conservan como respaldo de rollback
+y las migraciones originales se mantienen sin cambios para que Flyway valide sus
+checksums.

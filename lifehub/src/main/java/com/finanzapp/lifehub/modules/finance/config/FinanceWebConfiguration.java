@@ -10,7 +10,7 @@ public class FinanceWebConfiguration implements WebMvcConfigurer {
     @Override
     public void configurePathMatch(PathMatchConfigurer configurer) {
         configurer.addPathPrefix("/user", handlerType ->
-                handlerType.getPackageName().startsWith("com.finanzapp.user.controller"));
+                handlerType.getPackageName().startsWith("com.finanzapp.lifehub.modules.identity.user.controller"));
         configurer.addPathPrefix("/movement", handlerType ->
                 handlerType.getPackageName().startsWith("com.finanzapp.movements.controller"));
         configurer.addPathPrefix("/tag", handlerType ->

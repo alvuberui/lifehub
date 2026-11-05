@@ -8,8 +8,8 @@ $ErrorActionPreference = "Stop"
 $InfraRoot = $PSScriptRoot
 $BackendRoot = Split-Path -Parent $InfraRoot
 $WorkspaceRoot = Split-Path -Parent $BackendRoot
-$FrontendRoot = Join-Path $WorkspaceRoot "finanzappv3-frontend"
-$ComposeFile = Join-Path $InfraRoot "docker-compose.yml"
+$FrontendRoot = Join-Path $WorkspaceRoot "lifehub-frontend"
+$ComposeFile = Join-Path $InfraRoot "docker-compose.local.yml"
 $EnvFile = Join-Path $InfraRoot ".env.local"
 $RuntimeRoot = Join-Path $InfraRoot ".local"
 $LogRoot = Join-Path $RuntimeRoot "logs"
@@ -69,7 +69,7 @@ if ([string]::IsNullOrWhiteSpace($KeycloakAdminPassword)) {
 }
 
 Write-Host "Levantando PostgreSQL y Keycloak..."
-Invoke-LocalCompose @("up", "-d", "postgres-keycloak", "postgres-user", "postgres-movements", "postgres-tags", "keycloak")
+Invoke-LocalCompose @("up", "-d", "postgres-keycloak", "postgres-lifehub", "keycloak")
 
 $KeycloakBaseUrl = "http://localhost:8081/auth"
 $Ready = $false

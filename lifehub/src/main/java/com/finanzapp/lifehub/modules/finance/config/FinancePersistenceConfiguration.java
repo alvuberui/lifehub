@@ -74,7 +74,7 @@ public class FinancePersistenceConfiguration {
     @Bean(name = "userEntityManagerFactory")
     LocalContainerEntityManagerFactoryBean userEntityManagerFactory(
             @Qualifier("userDataSource") DataSource dataSource) {
-        return entityManagerFactory(dataSource, "user", "com.finanzapp.user.repository.entities");
+        return entityManagerFactory(dataSource, "user", "com.finanzapp.lifehub.modules.identity.user.repository.entities");
     }
 
     @Bean(name = "movementsEntityManagerFactory")
@@ -111,19 +111,19 @@ public class FinancePersistenceConfiguration {
     @Bean(initMethod = "migrate")
     @ConditionalOnProperty(name = "lifehub.flyway.enabled", havingValue = "true", matchIfMissing = true)
     Flyway userFlyway(@Qualifier("userDataSource") DataSource dataSource) {
-        return flyway(dataSource, "classpath:db/migration/user");
+        return flyway(dataSource, "classpath:db/migration/user", "identity", "identity_flyway_schema_history");
     }
 
     @Bean(initMethod = "migrate")
     @ConditionalOnProperty(name = "lifehub.flyway.enabled", havingValue = "true", matchIfMissing = true)
     Flyway movementsFlyway(@Qualifier("movementsDataSource") DataSource dataSource) {
-        return flyway(dataSource, "classpath:db/migration/movements");
+        return flyway(dataSource, "classpath:db/migration/movements", "movements", "movements_flyway_schema_history");
     }
 
     @Bean(initMethod = "migrate")
     @ConditionalOnProperty(name = "lifehub.flyway.enabled", havingValue = "true", matchIfMissing = true)
     Flyway tagsFlyway(@Qualifier("tagsDataSource") DataSource dataSource) {
-        return flyway(dataSource, "classpath:db/migration/tags");
+        return flyway(dataSource, "classpath:db/migration/tags", "tags", "tags_flyway_schema_history");
     }
 
     private LocalContainerEntityManagerFactoryBean entityManagerFactory(
@@ -145,10 +145,13 @@ public class FinancePersistenceConfiguration {
         return factory;
     }
 
-    private Flyway flyway(DataSource dataSource, String location) {
+    private Flyway flyway(DataSource dataSource, String location, String schema, String historyTable) {
         return Flyway.configure()
                 .dataSource(dataSource)
                 .locations(location)
+                .schemas(schema)
+                .defaultSchema(schema)
+                .table(historyTable)
                 .baselineOnMigrate(true)
                 .baselineVersion("1")
                 .validateOnMigrate(true)

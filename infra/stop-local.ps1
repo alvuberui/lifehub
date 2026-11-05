@@ -4,7 +4,7 @@ param()
 $ErrorActionPreference = "Continue"
 $InfraRoot = $PSScriptRoot
 $ProcessFile = Join-Path $InfraRoot ".local\processes.json"
-$ComposeFile = Join-Path $InfraRoot "docker-compose.yml"
+$ComposeFile = Join-Path $InfraRoot "docker-compose.local.yml"
 $EnvFile = Join-Path $InfraRoot ".env.local"
 
 $processIds = @()
@@ -18,7 +18,7 @@ $processIds += @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | W
     ($_.Name -eq "java.exe" -and $_.CommandLine -match "lifehub-0\.0\.1-SNAPSHOT\.jar") -or
     ($_.Name -eq "cmd.exe" -and $_.CommandLine -match "mvnw\.cmd spring-boot:run") -or
     ($_.CommandLine -match "watch-local\.ps1") -or
-    ($_.Name -eq "node.exe" -and $_.CommandLine -match "finanzappv3-frontend")
+    ($_.Name -eq "node.exe" -and $_.CommandLine -match "lifehub-frontend")
 } | ForEach-Object { $_.ProcessId })
 
 foreach ($processId in @($processIds | Select-Object -Unique)) {

@@ -1,0 +1,86 @@
+services:
+  postgres-keycloak:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+    volumes:
+      - postgres_keycloak_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [internal]
+    mem_limit: 256m
+
+  postgres-lifehub:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: lifehub
+      POSTGRES_USER: lifehubuser
+      POSTGRES_PASSWORD: ${LIFEHUB_DB_PASSWORD:-lifehub-local-pass}
+    volumes:
+      - postgres_lifehub_data:/var/lib/postgresql/data
+      - ./postgres/init/lifehub:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "127.0.0.1:5437:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifehubuser -d lifehub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [internal]
+    mem_limit: 512m
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    depends_on:
+      postgres-keycloak:
+        condition: service_healthy
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required}
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:?KEYCLOAK_ADMIN is required}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD is required}
+      KC_SPI_THEME_CACHE_THEMES: "false"
+      KC_SPI_THEME_CACHE_TEMPLATES: "false"
+      KC_SPI_THEME_STATIC_MAX_AGE: "-1"
+      KC_HTTP_RELATIVE_PATH: "/auth"
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "true"
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:?KEYCLOAK_HOSTNAME is required}
+      KC_PROXY: "edge"
+    command:
+      - start
+      - --proxy=edge
+      - --http-enabled=true
+      - --hostname=${KEYCLOAK_HOSTNAME:?KEYCLOAK_HOSTNAME is required}
+      - --hostname-strict=true
+      - --http-relative-path=/auth
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - ../keycloak/themes/finanzapp:/opt/keycloak/themes/finanzapp:ro
+    restart: unless-stopped
+    networks: [internal]
+    mem_limit: 768m
+
+volumes:
+  postgres_keycloak_data:
+  postgres_lifehub_data:
+  # Volúmenes antiguos conservados para rollback.
+  postgres_data:
+  kcdata:
+  postgres_user_data:
+  postgres_movements_data:
+  postgres_tag_data:
+
+networks:
+  internal:
+    driver: bridge
