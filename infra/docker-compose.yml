@@ -51,59 +51,25 @@ services:
     networks: [internal]
     mem_limit: 768m
 
-  postgres-user:
+  postgres-lifehub:
     image: postgres:16
     environment:
-      POSTGRES_DB: userdb
-      POSTGRES_USER: useruser
+      POSTGRES_DB: lifehub
+      POSTGRES_USER: lifehubuser
       POSTGRES_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
+      IDENTITY_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
+      MOVEMENTS_DB_PASSWORD: ${MOVEMENTS_DB_PASSWORD:?MOVEMENTS_DB_PASSWORD is required}
+      TAGS_DB_PASSWORD: ${TAGS_DB_PASSWORD:?TAGS_DB_PASSWORD is required}
     volumes:
-      - postgres_user_data:/var/lib/postgresql/data
+      - postgres_lifehub_data:/var/lib/postgresql/data
+      - ./postgres/init/lifehub:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
     networks: [internal]
-    mem_limit: 256m
+    mem_limit: 512m
     ports:
-      - "127.0.0.1:5435:5432"
+      - "127.0.0.1:5437:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U useruser -d userdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  postgres-movements:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: movementsdb
-      POSTGRES_USER: movementsuser
-      POSTGRES_PASSWORD: ${MOVEMENTS_DB_PASSWORD:?MOVEMENTS_DB_PASSWORD is required}
-    volumes:
-      - postgres_movements_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks: [internal]
-    mem_limit: 256m
-    ports:
-      - "127.0.0.1:5434:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U movementsuser -d movementsdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  postgres-tags:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: tagsdb
-      POSTGRES_USER: tagsuser
-      POSTGRES_PASSWORD: ${TAGS_DB_PASSWORD:?TAGS_DB_PASSWORD is required}
-    volumes:
-      - postgres_tag_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks: [internal]
-    mem_limit: 256m
-    ports:
-      - "127.0.0.1:5436:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tagsuser -d tagsdb"]
+      test: ["CMD-SHELL", "pg_isready -U lifehubuser -d lifehub"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -118,7 +84,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
-      USER_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
+      IDENTITY_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
       MOVEMENTS_DB_PASSWORD: ${MOVEMENTS_DB_PASSWORD:?MOVEMENTS_DB_PASSWORD is required}
       TAGS_DB_PASSWORD: ${TAGS_DB_PASSWORD:?TAGS_DB_PASSWORD is required}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?INTERNAL_SERVICE_TOKEN is required}
@@ -130,18 +96,12 @@ services:
     depends_on:
       keycloak:
         condition: service_started
-      postgres-user:
-        condition: service_healthy
-      postgres-movements:
-        condition: service_healthy
-      postgres-tags:
+      postgres-lifehub:
         condition: service_healthy
 
 volumes:
   kcdata:
-  postgres_user_data:
-  postgres_movements_data:
-  postgres_tag_data:
+  postgres_lifehub_data:
 
 networks:
   internal:

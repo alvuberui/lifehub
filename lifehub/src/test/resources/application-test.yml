@@ -13,7 +13,7 @@ lifehub:
     hibernate:
       ddl-auto: create-drop
   datasource:
-    user:
+    identity:
       url: jdbc:h2:mem:lifehub_user;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS identity
       username: sa
       password:

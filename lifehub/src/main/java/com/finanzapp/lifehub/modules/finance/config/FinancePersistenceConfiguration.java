@@ -29,15 +29,15 @@ public class FinancePersistenceConfiguration {
 
     @Bean
     @Primary
-    @ConfigurationProperties("lifehub.datasource.user")
-    DataSourceProperties userDataSourceProperties() {
+    @ConfigurationProperties("lifehub.datasource.identity")
+    DataSourceProperties identityDataSourceProperties() {
         return new DataSourceProperties();
     }
 
     @Bean
     @Primary
-    HikariDataSource userDataSource(
-            @Qualifier("userDataSourceProperties") DataSourceProperties properties) {
+    HikariDataSource identityDataSource(
+            @Qualifier("identityDataSourceProperties") DataSourceProperties properties) {
         return properties.initializeDataSourceBuilder()
                 .type(HikariDataSource.class)
                 .build();
@@ -71,10 +71,10 @@ public class FinancePersistenceConfiguration {
                 .build();
     }
 
-    @Bean(name = "userEntityManagerFactory")
-    LocalContainerEntityManagerFactoryBean userEntityManagerFactory(
-            @Qualifier("userDataSource") DataSource dataSource) {
-        return entityManagerFactory(dataSource, "user", "com.finanzapp.lifehub.modules.identity.user.repository.entities");
+    @Bean(name = "identityEntityManagerFactory")
+    LocalContainerEntityManagerFactoryBean identityEntityManagerFactory(
+            @Qualifier("identityDataSource") DataSource dataSource) {
+        return entityManagerFactory(dataSource, "identity", "com.finanzapp.lifehub.modules.identity.user.repository.entities");
     }
 
     @Bean(name = "movementsEntityManagerFactory")
@@ -89,10 +89,10 @@ public class FinancePersistenceConfiguration {
         return entityManagerFactory(dataSource, "tags", "com.finanzapp.tags.repository.entities");
     }
 
-    @Bean(name = "userTransactionManager")
+    @Bean(name = "identityTransactionManager")
     @Primary
-    PlatformTransactionManager userTransactionManager(
-            @Qualifier("userEntityManagerFactory") EntityManagerFactory entityManagerFactory) {
+    PlatformTransactionManager identityTransactionManager(
+            @Qualifier("identityEntityManagerFactory") EntityManagerFactory entityManagerFactory) {
         return new JpaTransactionManager(entityManagerFactory);
     }
 
@@ -110,7 +110,7 @@ public class FinancePersistenceConfiguration {
 
     @Bean(initMethod = "migrate")
     @ConditionalOnProperty(name = "lifehub.flyway.enabled", havingValue = "true", matchIfMissing = true)
-    Flyway userFlyway(@Qualifier("userDataSource") DataSource dataSource) {
+    Flyway identityFlyway(@Qualifier("identityDataSource") DataSource dataSource) {
         return flyway(dataSource, "classpath:db/migration/user", "identity", "identity_flyway_schema_history");
     }
 
@@ -152,8 +152,8 @@ public class FinancePersistenceConfiguration {
                 .schemas(schema)
                 .defaultSchema(schema)
                 .table(historyTable)
-                .baselineOnMigrate(true)
-                .baselineVersion("1")
+                .baselineOnMigrate(false)
+                .cleanDisabled(true)
                 .validateOnMigrate(true)
                 .load();
     }

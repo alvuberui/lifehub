@@ -17,20 +17,20 @@ server:
 lifehub:
   internal-base-url: http://localhost:8080
   datasource:
-    user:
-      url: jdbc:postgresql://localhost:5437/lifehub?currentSchema=identity
-      username: lifehubuser
-      password: ${LIFEHUB_DB_PASSWORD:lifehub-local-pass}
+    identity:
+      url: jdbc:postgresql://localhost:5437/identitydb?currentSchema=identity
+      username: identityuser
+      password: ${IDENTITY_DB_PASSWORD:lifehub-local-pass}
       driver-class-name: org.postgresql.Driver
     movements:
-      url: jdbc:postgresql://localhost:5437/lifehub?currentSchema=movements
-      username: lifehubuser
-      password: ${LIFEHUB_DB_PASSWORD:lifehub-local-pass}
+      url: jdbc:postgresql://localhost:5437/movementsdb?currentSchema=movements
+      username: movementsuser
+      password: ${MOVEMENTS_DB_PASSWORD:lifehub-local-pass}
       driver-class-name: org.postgresql.Driver
     tags:
-      url: jdbc:postgresql://localhost:5437/lifehub?currentSchema=tags
-      username: lifehubuser
-      password: ${LIFEHUB_DB_PASSWORD:lifehub-local-pass}
+      url: jdbc:postgresql://localhost:5437/tagsdb?currentSchema=tags
+      username: tagsuser
+      password: ${TAGS_DB_PASSWORD:lifehub-local-pass}
       driver-class-name: org.postgresql.Driver
 
 services:

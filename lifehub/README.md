@@ -27,9 +27,10 @@ Las rutas publicas se mantienen sin cambios:
 ## Persistencia
 
 Para conservar el comportamiento y los datos actuales, se usan dos instancias
-PostgreSQL: una exclusiva para Keycloak y otra para la base `lifehub`. Dentro de
-`lifehub`, los módulos usan los esquemas `identity`, `movements` y `tags`. Las
-bases antiguas `userdb`, `movementsdb` y `tagsdb` se conservan temporalmente
+PostgreSQL: una exclusiva para Keycloak y otra para LifeHub. Dentro de la
+instancia de LifeHub existen las bases `identitydb`, `movementsdb` y `tagsdb`.
+Cada módulo usa su propia base, esquema y usuario propietario. La base antigua
+`lifehub`, sus esquemas y los volúmenes anteriores se conservan temporalmente
 como rollback y ya no reciben conexiones de la aplicación.
 
 ## Arranque local
@@ -42,9 +43,9 @@ java -jar lifehub\target\lifehub-0.0.1-SNAPSHOT.jar
 ```
 
 Con el perfil local, LifeHub escucha en `http://localhost:8080`. La instancia
-PostgreSQL de LifeHub está disponible en `5437` y contiene `lifehub`; sus
-esquemas son `identity`, `movements` y `tags`. Keycloak usa otra instancia
-PostgreSQL interna y está en `8081`.
+PostgreSQL de LifeHub está disponible en `5437` y contiene `identitydb`,
+`movementsdb` y `tagsdb`. Keycloak usa otra instancia PostgreSQL interna y está
+en `8081`.
 
 ## Pruebas
 
@@ -58,6 +59,6 @@ Las pruebas usan tres bases H2 temporales y no tocan PostgreSQL.
 
 El servicio `lifehub` es el unico backend de `infra/docker-compose.yml` y
 expone directamente el puerto `8080`. La instancia PostgreSQL usa el volumen
-`postgres_data`; los volúmenes anteriores se conservan como respaldo de rollback
-y las migraciones originales se mantienen sin cambios para que Flyway valide sus
-checksums.
+`postgres_lifehub_data`; la base `lifehub` y los volúmenes anteriores se
+conservan como respaldo de rollback. Las migraciones originales se mantienen
+sin cambios para que Flyway valide sus checksums.
