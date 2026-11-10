@@ -27,7 +27,7 @@ public interface MonthlyReportDispatchRepository extends JpaRepository<MonthlyRe
                     error_message = NULL
                 WHERE monthly_report_dispatches.status <> 'SENT'
                   AND (monthly_report_dispatches.last_attempt_at IS NULL
-                       OR monthly_report_dispatches.last_attempt_at < (:attemptedAt - INTERVAL '15 minutes'))
+                       OR monthly_report_dispatches.last_attempt_at < (CURRENT_TIMESTAMP - INTERVAL '15 minutes'))
             """, nativeQuery = true)
     int claimForProcessing(
             @Param("userEmail") String userEmail,
