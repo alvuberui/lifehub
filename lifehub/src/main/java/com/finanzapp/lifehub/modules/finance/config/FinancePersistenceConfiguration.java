@@ -74,7 +74,12 @@ public class FinancePersistenceConfiguration {
     @Bean(name = "identityEntityManagerFactory")
     LocalContainerEntityManagerFactoryBean identityEntityManagerFactory(
             @Qualifier("identityDataSource") DataSource dataSource) {
-        return entityManagerFactory(dataSource, "identity", "com.finanzapp.lifehub.modules.identity.user.repository.entities");
+        return entityManagerFactory(
+                dataSource,
+                "identity",
+                "com.finanzapp.lifehub.modules.identity.user.repository.entities",
+                "com.finanzapp.lifehub.modules.identity.reporting.repository.entities"
+        );
     }
 
     @Bean(name = "movementsEntityManagerFactory")
@@ -129,10 +134,10 @@ public class FinancePersistenceConfiguration {
     private LocalContainerEntityManagerFactoryBean entityManagerFactory(
             DataSource dataSource,
             String persistenceUnit,
-            String entityPackage) {
+            String... entityPackages) {
         var factory = new LocalContainerEntityManagerFactoryBean();
         factory.setDataSource(dataSource);
-        factory.setPackagesToScan(entityPackage);
+        factory.setPackagesToScan(entityPackages);
         factory.setPersistenceUnitName(persistenceUnit);
 
         var vendorAdapter = new HibernateJpaVendorAdapter();

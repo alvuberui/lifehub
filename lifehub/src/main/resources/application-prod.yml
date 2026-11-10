@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
   datasource:
     hikari:
       maximum-pool-size: 5
@@ -32,6 +36,25 @@ lifehub:
       username: tagsuser
       password: ${TAGS_DB_PASSWORD}
       driver-class-name: org.postgresql.Driver
+    home:
+      url: jdbc:postgresql://postgres-lifehub:5432/homedb?currentSchema=home
+      username: homeuser
+      password: ${HOME_DB_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+    connections:
+      url: jdbc:postgresql://postgres-lifehub:5432/connectionsdb?currentSchema=connections
+      username: connectionsuser
+      password: ${CONNECTIONS_DB_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+  monthly-report:
+    enabled: ${MONTHLY_REPORT_ENABLED:true}
+    dry-run: ${MONTHLY_REPORT_DRY_RUN:false}
+    test-endpoint-enabled: ${MONTHLY_REPORT_TEST_ENDPOINT_ENABLED:false}
+    time-zone: ${MONTHLY_REPORT_TIME_ZONE:Europe/Madrid}
+    cron: "${MONTHLY_REPORT_CRON:0 0 8 * * *}"
+    from-email: ${BREVO_FROM_EMAIL:}
+    from-name: ${BREVO_FROM_NAME:LifeHub}
+    brevo-api-key: ${BREVO_API_KEY:}
 
 services:
   internal-service-token: ${INTERNAL_SERVICE_TOKEN}

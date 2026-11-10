@@ -176,7 +176,10 @@ public class MovementController {
 
         MovementResponseDto response = movementMapper.toMovementDto(
                 movementService.createMovement(
-                        movementMapper.toCreateMovementRequest(createMovementDto),email, jwt.getTokenValue() )
+                        movementMapper.toCreateMovementRequest(createMovementDto),
+                        email,
+                        createMovementDto.getOwnerEmail(),
+                        jwt.getTokenValue())
         );
 
         return ResponseEntity.ok(response);
@@ -281,5 +284,20 @@ public class MovementController {
         BigDecimal response = movementService.getNetWorth(email, tokenValue);
 
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/shared-summary")
+    public ResponseEntity<com.finanzapp.movements.service.domain.SharedFinanceSummary> getSharedSummary(
+            @AuthenticationPrincipal Jwt jwt) {
+        return ResponseEntity.ok(movementService.getSharedFinanceSummary(jwt.getClaimAsString("email")));
+    }
+
+    @GetMapping("/shared-details")
+    public ResponseEntity<com.finanzapp.movements.service.domain.SharedFinanceDetails> getSharedDetails(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam("from") LocalDate from,
+            @RequestParam("to") LocalDate to) {
+        if (from.isAfter(to)) return ResponseEntity.badRequest().build();
+        return ResponseEntity.ok(movementService.getSharedFinanceDetails(jwt.getClaimAsString("email"), from, to));
     }
 }

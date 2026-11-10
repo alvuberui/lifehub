@@ -28,6 +28,11 @@ lifehub:
       username: sa
       password:
       driver-class-name: org.h2.Driver
+    home:
+      url: jdbc:h2:mem:lifehub_home;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS home
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
 
 services:
   internal-service-token: test-internal-token

@@ -121,6 +121,11 @@ El lanzador crea estas credenciales únicamente para desarrollo:
 ```text
 Email:      local@finanzapp.test
 Contraseña: localpass123!
+
+Email	Contraseña
+ana@finanzapp.test	Test1234!
+carlos@finanzapp.test	Test1234!
+lucia@finanzapp.test	Test1234!
 ```
 
 No deben utilizarse en producción.

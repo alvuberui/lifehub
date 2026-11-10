@@ -43,6 +43,44 @@ function Get-EnvValue {
     return ($line -replace "^$([regex]::Escape($Name))=", "")
 }
 
+function Stop-PreviousLocalProcesses {
+    if (-not (Test-Path $ProcessFile)) {
+        return
+    }
+
+    try {
+        $managedProcesses = Get-Content $ProcessFile -Raw | ConvertFrom-Json
+    } catch {
+        Write-Warning "No se pudo leer $ProcessFile; se continuará sin detener procesos anteriores."
+        return
+    }
+
+    foreach ($managedProcess in @($managedProcesses)) {
+        $processId = 0
+        if (-not [int]::TryParse([string]$managedProcess.pid, [ref]$processId)) {
+            continue
+        }
+
+        $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
+        if ($null -eq $processInfo) {
+            continue
+        }
+
+        $commandLine = [string]$processInfo.CommandLine
+        $isExpectedProcess = switch ([string]$managedProcess.name) {
+            "lifehub" { $commandLine -like "*lifehub-0.0.1-SNAPSHOT.jar*" }
+            "backend-watcher" { $commandLine -like "*watch-local.ps1*" }
+            "frontend" { $commandLine -like "*lifehub-frontend*" -and ($commandLine -like "*npm*" -or $commandLine -like "*next*") }
+            default { $false }
+        }
+
+        if ($isExpectedProcess) {
+            Write-Host "Deteniendo proceso local anterior: $($managedProcess.name) (PID $processId)"
+            & taskkill.exe /PID $processId /T /F | Out-Null
+        }
+    }
+}
+
 if (-not (Test-Path $EnvFile)) {
     @"
 KEYCLOAK_DB_PASSWORD=keycloak-local-pass
@@ -52,7 +90,17 @@ KEYCLOAK_HOSTNAME=localhost
 USER_DB_PASSWORD=authpass
 MOVEMENTS_DB_PASSWORD=movementspass
 TAGS_DB_PASSWORD=tagspass
+HOME_DB_PASSWORD=homepass
+CONNECTIONS_DB_PASSWORD=connectionspass
 INTERNAL_SERVICE_TOKEN=local-internal-token
+MONTHLY_REPORT_ENABLED=false
+MONTHLY_REPORT_DRY_RUN=true
+MONTHLY_REPORT_TEST_ENDPOINT_ENABLED=false
+MONTHLY_REPORT_TIME_ZONE=Europe/Madrid
+MONTHLY_REPORT_CRON=0 0 8 * * *
+BREVO_FROM_EMAIL=
+BREVO_FROM_NAME=LifeHub
+BREVO_API_KEY=
 "@ | Set-Content -Path $EnvFile -Encoding utf8
     Write-Host "Creado $EnvFile"
 }
@@ -62,14 +110,66 @@ $KeycloakAdminPassword = Get-EnvValue -Path $EnvFile -Name "KEYCLOAK_ADMIN_PASSW
 $UserDbPassword = Get-EnvValue -Path $EnvFile -Name "USER_DB_PASSWORD"
 $MovementsDbPassword = Get-EnvValue -Path $EnvFile -Name "MOVEMENTS_DB_PASSWORD"
 $TagsDbPassword = Get-EnvValue -Path $EnvFile -Name "TAGS_DB_PASSWORD"
+$HomeDbPassword = Get-EnvValue -Path $EnvFile -Name "HOME_DB_PASSWORD"
+$ConnectionsDbPassword = Get-EnvValue -Path $EnvFile -Name "CONNECTIONS_DB_PASSWORD"
 $InternalServiceToken = Get-EnvValue -Path $EnvFile -Name "INTERNAL_SERVICE_TOKEN"
+$MonthlyReportEnabled = Get-EnvValue -Path $EnvFile -Name "MONTHLY_REPORT_ENABLED"
+$MonthlyReportDryRun = Get-EnvValue -Path $EnvFile -Name "MONTHLY_REPORT_DRY_RUN"
+$MonthlyReportTestEndpointEnabled = Get-EnvValue -Path $EnvFile -Name "MONTHLY_REPORT_TEST_ENDPOINT_ENABLED"
+$MonthlyReportTimeZone = Get-EnvValue -Path $EnvFile -Name "MONTHLY_REPORT_TIME_ZONE"
+$MonthlyReportCron = Get-EnvValue -Path $EnvFile -Name "MONTHLY_REPORT_CRON"
+$BrevoFromEmail = Get-EnvValue -Path $EnvFile -Name "BREVO_FROM_EMAIL"
+$BrevoFromName = Get-EnvValue -Path $EnvFile -Name "BREVO_FROM_NAME"
+$BrevoApiKey = Get-EnvValue -Path $EnvFile -Name "BREVO_API_KEY"
+
+if ([string]::IsNullOrWhiteSpace($HomeDbPassword)) {
+    $HomeDbPassword = "home-local-pass"
+}
+
+if ([string]::IsNullOrWhiteSpace($ConnectionsDbPassword)) {
+    $ConnectionsDbPassword = "connections-local-pass"
+}
 
 if ([string]::IsNullOrWhiteSpace($KeycloakAdminPassword)) {
     throw "KEYCLOAK_ADMIN_PASSWORD no está configurado en $EnvFile."
 }
 
+Stop-PreviousLocalProcesses
+
 Write-Host "Levantando PostgreSQL y Keycloak..."
 Invoke-LocalCompose @("up", "-d", "postgres-keycloak", "postgres-lifehub", "keycloak")
+
+Write-Host "Esperando a que PostgreSQL de LifeHub esté listo..."
+$postgresReady = $false
+for ($attempt = 1; $attempt -le 30; $attempt++) {
+    & docker compose --project-name finanzapp-local --env-file $EnvFile -f $ComposeFile exec -T postgres-lifehub pg_isready -U lifehubuser -d postgres 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        $postgresReady = $true
+        break
+    }
+    Start-Sleep -Seconds 1
+}
+if (-not $postgresReady) {
+    throw "PostgreSQL de LifeHub no ha respondido a tiempo."
+}
+
+Write-Host "Comprobando la base de datos de conexiones..."
+$connectionsDatabaseExists = ((& docker compose --project-name finanzapp-local --env-file $EnvFile -f $ComposeFile exec -T postgres-lifehub psql -U lifehubuser -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'connectionsdb';" 2>$null) -join "").Trim()
+if ($connectionsDatabaseExists -ne "1") {
+    $connectionsRoleExists = ((& docker compose --project-name finanzapp-local --env-file $EnvFile -f $ComposeFile exec -T postgres-lifehub psql -U lifehubuser -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'connectionsuser';" 2>$null) -join "").Trim()
+    if ($connectionsRoleExists -ne "1") {
+        $escapedConnectionsPassword = $ConnectionsDbPassword.Replace("'", "''")
+        & docker compose --project-name finanzapp-local --env-file $EnvFile -f $ComposeFile exec -T postgres-lifehub psql -v ON_ERROR_STOP=1 -U lifehubuser -d postgres -c "CREATE ROLE connectionsuser LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD '$escapedConnectionsPassword';" 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "No se pudo crear el usuario de connectionsdb."
+        }
+    }
+    & docker compose --project-name finanzapp-local --env-file $EnvFile -f $ComposeFile exec -T postgres-lifehub psql -v ON_ERROR_STOP=1 -U lifehubuser -d postgres -c "CREATE DATABASE connectionsdb OWNER connectionsuser ENCODING 'UTF8' TEMPLATE template0;" 2>&1 | Out-Null
+    & docker compose --project-name finanzapp-local --env-file $EnvFile -f $ComposeFile exec -T postgres-lifehub psql -v ON_ERROR_STOP=1 -U lifehubuser -d connectionsdb -c "REVOKE CONNECT ON DATABASE connectionsdb FROM PUBLIC; GRANT CONNECT ON DATABASE connectionsdb TO connectionsuser; REVOKE ALL ON SCHEMA public FROM PUBLIC; CREATE SCHEMA connections AUTHORIZATION connectionsuser; GRANT USAGE, CREATE ON SCHEMA connections TO connectionsuser;" 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "No se pudo crear connectionsdb."
+    }
+}
 
 $KeycloakBaseUrl = "http://localhost:8081/auth"
 $Ready = $false
@@ -130,6 +230,24 @@ if ($null -eq $Realm) {
             registrationAllowed = $false
         } | ConvertTo-Json -Depth 10) | Out-Null
 }
+
+$RealmConfiguration = @{
+    realm = $RealmName
+    enabled = $true
+    sslRequired = "NONE"
+    registrationAllowed = $true
+    registrationEmailAsUsername = $true
+    loginWithEmailAllowed = $true
+    resetPasswordAllowed = $true
+    verifyEmail = $false
+}
+
+Invoke-RestMethod `
+    -Method Put `
+    -Uri "$KeycloakBaseUrl/admin/realms/$RealmName" `
+    -Headers $AdminHeaders `
+    -ContentType "application/json" `
+    -Body ($RealmConfiguration | ConvertTo-Json -Depth 10) | Out-Null
 
 $Client = Get-KeycloakResource "$KeycloakBaseUrl/admin/realms/$RealmName/clients?clientId=$ClientId"
 $ClientConfiguration = @{
@@ -263,10 +381,29 @@ $processes += Start-LocalProcess `
         USER_DB_PASSWORD = $UserDbPassword
         MOVEMENTS_DB_PASSWORD = $MovementsDbPassword
         TAGS_DB_PASSWORD = $TagsDbPassword
+        HOME_DB_PASSWORD = $HomeDbPassword
+        CONNECTIONS_DB_PASSWORD = $ConnectionsDbPassword
         INTERNAL_SERVICE_TOKEN = $InternalServiceToken
         LIFEHUB_INTERNAL_BASE_URL = "http://localhost:8080"
+        MONTHLY_REPORT_ENABLED = $(if ([string]::IsNullOrWhiteSpace($MonthlyReportEnabled)) { "false" } else { $MonthlyReportEnabled })
+        MONTHLY_REPORT_DRY_RUN = $(if ([string]::IsNullOrWhiteSpace($MonthlyReportDryRun)) { "true" } else { $MonthlyReportDryRun })
+        MONTHLY_REPORT_TEST_ENDPOINT_ENABLED = $(if ([string]::IsNullOrWhiteSpace($MonthlyReportTestEndpointEnabled)) { "false" } else { $MonthlyReportTestEndpointEnabled })
+        MONTHLY_REPORT_TIME_ZONE = $(if ([string]::IsNullOrWhiteSpace($MonthlyReportTimeZone)) { "Europe/Madrid" } else { $MonthlyReportTimeZone })
+        MONTHLY_REPORT_CRON = $(if ([string]::IsNullOrWhiteSpace($MonthlyReportCron)) { "0 0 8 * * *" } else { $MonthlyReportCron })
+        BREVO_FROM_EMAIL = $(if ($null -eq $BrevoFromEmail) { "" } else { $BrevoFromEmail })
+        BREVO_FROM_NAME = $(if ([string]::IsNullOrWhiteSpace($BrevoFromName)) { "LifeHub" } else { $BrevoFromName })
+        BREVO_API_KEY = $(if ($null -eq $BrevoApiKey) { "" } else { $BrevoApiKey })
     }) `
     -CommandLine ('java -jar "{0}"' -f (Join-Path $BackendRoot "lifehub\target\lifehub-0.0.1-SNAPSHOT.jar"))
+
+try {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $InfraRoot "seed-local-demo.ps1")
+    if ($LASTEXITCODE -ne 0) {
+        throw "La carga de datos de demostración ha fallado."
+    }
+} catch {
+    Write-Warning "No se han podido cargar los datos de demostración: $($_.Exception.Message)"
+}
 
 $processes += Start-LocalProcess `
     -Name "backend-watcher" `

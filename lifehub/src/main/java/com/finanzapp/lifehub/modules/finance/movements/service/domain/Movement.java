@@ -27,4 +27,6 @@ public class Movement {
     private Long tagId;
 
     private String description;
+
+    private Boolean includeInForecast;
 }

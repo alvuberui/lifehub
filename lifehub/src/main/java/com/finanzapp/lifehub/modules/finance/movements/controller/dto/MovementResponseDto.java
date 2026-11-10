@@ -25,6 +25,8 @@ public class MovementResponseDto {
     private String tagColor;
 
     private String description;
+
+    private Boolean includeInForecast;
 }
 
 

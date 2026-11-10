@@ -25,6 +25,8 @@ services:
       IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD:-lifehub-local-pass}
       MOVEMENTS_DB_PASSWORD: ${MOVEMENTS_DB_PASSWORD:-lifehub-local-pass}
       TAGS_DB_PASSWORD: ${TAGS_DB_PASSWORD:-lifehub-local-pass}
+      HOME_DB_PASSWORD: ${HOME_DB_PASSWORD:-lifehub-local-pass}
+      CONNECTIONS_DB_PASSWORD: ${CONNECTIONS_DB_PASSWORD:-lifehub-local-pass}
     volumes:
       - postgres_lifehub_data:/var/lib/postgresql/data
       - ./postgres/init/lifehub:/docker-entrypoint-initdb.d:ro

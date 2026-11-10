@@ -44,9 +44,12 @@ docker compose --env-file .env up -d --build
 docker compose ps
 ```
 
-La migración crea `identitydb`, `movementsdb` y `tagsdb` en la misma instancia
-PostgreSQL de LifeHub, copia todos los objetos de cada esquema y conserva la
-base `lifehub` original. Las tablas de historial Flyway se copian con sus filas
+La migración crea `identitydb`, `movementsdb`, `tagsdb`, `homedb` y
+`connectionsdb` en la misma instancia PostgreSQL de LifeHub, copia todos los
+objetos de cada esquema y conserva la base `lifehub` original. En volúmenes
+existentes, el servicio idempotente `postgres-lifehub-bootstrap` crea únicamente
+`connectionsdb`, `connectionsuser` y su esquema si todavía no existen; no borra
+ni modifica las bases antiguas. Las tablas de historial Flyway se copian con sus filas
 existentes; la aplicación usa `baselineOnMigrate=false`, `validateOnMigrate=true`
 y `cleanDisabled=true`. Hibernate está configurado con `ddl-auto: validate`, por
 lo que una diferencia de esquema detiene el servicio en vez de alterar o borrar

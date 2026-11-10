@@ -35,6 +35,8 @@ public class UpdateMovementDto {
     @Size(max = 255, message = "La descripción no puede superar los 255 caracteres")
     private String description;
 
+    private Boolean includeInForecast;
+
     @JsonIgnore
     private boolean tagIdSpecified;
 

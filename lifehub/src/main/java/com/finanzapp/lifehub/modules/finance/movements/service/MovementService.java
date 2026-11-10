@@ -103,6 +103,12 @@ public interface MovementService {
      */
     Movement createMovement(CreateMovementRequest movement, String userEmail, String bearerToken);
 
+    /**
+     * Creates a movement for the owner account. The actor must have ADMIN
+     * permission when the owner differs from the actor.
+     */
+    Movement createMovement(CreateMovementRequest movement, String actorEmail, String ownerEmail, String bearerToken);
+
 
     /**
      * Update an existing movement.
@@ -148,4 +154,8 @@ public interface MovementService {
      * Formula: initial wealth + benefits - expenses.
      */
     BigDecimal getNetWorth(String userEmail, String tokenValue);
+
+    SharedFinanceSummary getSharedFinanceSummary(String userEmail);
+
+    SharedFinanceDetails getSharedFinanceDetails(String viewerEmail, LocalDate from, LocalDate to);
 }
