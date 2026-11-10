@@ -18,6 +18,7 @@ public class FinanceSecurityConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/movement/movements/internal/tag-deletions").permitAll()
+                        .requestMatchers("/internal/monthly-report/test").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 

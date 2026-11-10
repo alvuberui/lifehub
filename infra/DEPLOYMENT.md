@@ -5,12 +5,12 @@ los datos de PostgreSQL.
 
 ## Antes de actualizar
 
-1. Haz una copia de seguridad de las tres bases de datos y de Keycloak. Como
-   mínimo, conserva un `pg_dump` de `userdb`, `movementsdb` y `tagsdb`, además
-   de un snapshot de la máquina virtual.
+1. Haz una copia de seguridad completa de Keycloak, de `lifehub` y de cada
+   esquema de LifeHub. Conserva también snapshots de los volúmenes PostgreSQL
+   relevantes y calcula checksums.
 2. Conserva los volúmenes Docker existentes:
-   `postgres_user_data`, `postgres_movements_data`, `postgres_tag_data` y
-   `kcdata`. No uses `docker compose down -v`.
+   `postgres_lifehub_data`, `kcdata` y los volúmenes antiguos para rollback.
+   No uses `docker compose down -v`.
 3. Crea `infra/.env` a partir de `.env.example`.
 
 La variable `INTERNAL_SERVICE_TOKEN` debe ser un valor aleatorio largo. LifeHub
@@ -44,15 +44,28 @@ docker compose --env-file .env up -d --build
 docker compose ps
 ```
 
-Las migraciones Flyway incluidas crean el historial mediante baseline, añaden
-índices y convierten los importes existentes de `DOUBLE PRECISION` a `NUMERIC`
-mediante `ALTER COLUMN ... USING`. Esta conversión es in-place: no elimina ni
-recrea filas. Aun así, la copia de seguridad previa es obligatoria antes de
-aplicar la migración de importes. En una base nueva, las tablas ya nacen con
-`NUMERIC`. Hibernate está configurado con `ddl-auto: validate`, por lo que una
-diferencia de esquema detiene el servicio en vez de alterar o borrar tablas
-automáticamente.
+La migración crea `identitydb`, `movementsdb`, `tagsdb`, `homedb` y
+`connectionsdb` en la misma instancia PostgreSQL de LifeHub, copia todos los
+objetos de cada esquema y conserva la base `lifehub` original. En volúmenes
+existentes, el servicio idempotente `postgres-lifehub-bootstrap` crea únicamente
+`connectionsdb`, `connectionsuser` y su esquema si todavía no existen; no borra
+ni modifica las bases antiguas. Las tablas de historial Flyway se copian con sus filas
+existentes; la aplicación usa `baselineOnMigrate=false`, `validateOnMigrate=true`
+y `cleanDisabled=true`. Hibernate está configurado con `ddl-auto: validate`, por
+lo que una diferencia de esquema detiene el servicio en vez de alterar o borrar
+tablas automáticamente.
 
 Si Flyway o Hibernate detectan una diferencia, detén el despliegue y revisa el
 esquema. No borres el volumen ni ejecutes migraciones destructivas para forzar
 el arranque.
+
+## Rollback
+
+1. Detén únicamente `lifehub` para cortar escrituras.
+2. Conserva `identitydb`, `movementsdb`, `tagsdb`, `lifehub` y todos los
+   volúmenes; no los borres.
+3. Restaura la configuración Compose y Spring anterior desde el backup de
+   configuración validado.
+4. Arranca la configuración anterior y comprueba salud, login y conteos.
+5. Solo después de una confirmación explícita se puede considerar retirar
+   recursos antiguos.

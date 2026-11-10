@@ -18,6 +18,14 @@ import java.time.LocalDate;
 @NoArgsConstructor
 public class CreateMovementDto {
 
+    /**
+     * Optional owner of the movement when an administrator creates it on behalf
+     * of a connected user. The backend authorizes this independently from the
+     * value sent by the client.
+     */
+    @Size(max = 320, message = "El email del propietario no puede superar 320 caracteres")
+    private String ownerEmail;
+
     @NotNull(message = "El tipo de movimiento es obligatorio")
     private MovementType movementType;
 
@@ -36,4 +44,6 @@ public class CreateMovementDto {
     @NotNull(message = "La descripción es obligatoria")
     @Size(max = 255, message = "La descripción no puede superar los 255 caracteres")
     private String description;
+
+    private Boolean includeInForecast;
 }

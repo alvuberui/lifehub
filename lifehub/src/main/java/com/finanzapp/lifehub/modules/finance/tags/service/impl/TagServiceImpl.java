@@ -8,7 +8,9 @@ import com.finanzapp.tags.repository.mapper.TagEntityMapper;
 import com.finanzapp.tags.service.TagService;
 import com.finanzapp.tags.service.domain.CreateTagRequest;
 import com.finanzapp.tags.service.domain.Tag;
-import lombok.RequiredArgsConstructor;
+import com.finanzapp.lifehub.modules.connections.domain.ModulePermission;
+import com.finanzapp.lifehub.modules.connections.service.ConnectionsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,7 +18,6 @@ import java.util.List;
 import java.util.Locale;
 
 @Service
-@RequiredArgsConstructor
 public class TagServiceImpl implements TagService {
 
     private final TagRepository movementRepository;
@@ -24,6 +25,26 @@ public class TagServiceImpl implements TagService {
     private final TagEntityMapper tagEntityMapper;
 
     private final TagDeletionOperationRepository deletionOperationRepository;
+    private final ConnectionsService connectionsService;
+
+    @Autowired
+    public TagServiceImpl(
+            TagRepository movementRepository,
+            TagEntityMapper tagEntityMapper,
+            TagDeletionOperationRepository deletionOperationRepository,
+            ConnectionsService connectionsService) {
+        this.movementRepository = movementRepository;
+        this.tagEntityMapper = tagEntityMapper;
+        this.deletionOperationRepository = deletionOperationRepository;
+        this.connectionsService = connectionsService;
+    }
+
+    public TagServiceImpl(
+            TagRepository movementRepository,
+            TagEntityMapper tagEntityMapper,
+            TagDeletionOperationRepository deletionOperationRepository) {
+        this(movementRepository, tagEntityMapper, deletionOperationRepository, null);
+    }
 
 
 
@@ -92,5 +113,32 @@ public class TagServiceImpl implements TagService {
                 .toList();
     }
 
+    @Override
+    public Tag createTagForOwner(CreateTagRequest createTagRequest, String ownerEmail, String actorEmail) {
+        requireAdmin(ownerEmail, actorEmail);
+        return createTag(createTagRequest, ownerEmail);
+    }
+
+    @Override
+    public List<Tag> getTagsForOwner(String ownerEmail, String actorEmail) {
+        if (!ownerEmail.equalsIgnoreCase(actorEmail)
+                && !connectionsService.hasPermission(ownerEmail, actorEmail, "finance", ModulePermission.DETAIL_READ)) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "No tienes permiso para ver estas etiquetas.");
+        }
+        return getTagsByUserEmail(ownerEmail);
+    }
+
+    @Override
+    public void deleteTagForOwner(Long tagId, String ownerEmail, String actorEmail) {
+        requireAdmin(ownerEmail, actorEmail);
+        deleteTag(tagId, ownerEmail);
+    }
+
+    private void requireAdmin(String ownerEmail, String actorEmail) {
+        if (!ownerEmail.equalsIgnoreCase(actorEmail)
+                && !connectionsService.hasPermission(ownerEmail, actorEmail, "finance", ModulePermission.ADMIN)) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "Necesitas permiso de administración para gestionar estas etiquetas.");
+        }
+    }
 
 }

@@ -1,8 +1,60 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
-CREATE SCHEMA IF NOT EXISTS identity AUTHORIZATION lifehubuser;
-CREATE SCHEMA IF NOT EXISTS movements AUTHORIZATION lifehubuser;
-CREATE SCHEMA IF NOT EXISTS tags AUTHORIZATION lifehubuser;
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
+    -v identity_password="$IDENTITY_DB_PASSWORD" \
+    -v movements_password="$MOVEMENTS_DB_PASSWORD" \
+    -v tags_password="$TAGS_DB_PASSWORD" \
+    -v home_password="$HOME_DB_PASSWORD" \
+    -v connections_password="$CONNECTIONS_DB_PASSWORD" <<'SQL'
+CREATE ROLE identityuser LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'identity_password';
+CREATE ROLE movementsuser LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'movements_password';
+CREATE ROLE tagsuser LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'tags_password';
+CREATE ROLE homeuser LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'home_password';
+CREATE ROLE connectionsuser LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'connections_password';
+CREATE DATABASE identitydb OWNER identityuser ENCODING 'UTF8' TEMPLATE template0;
+CREATE DATABASE movementsdb OWNER movementsuser ENCODING 'UTF8' TEMPLATE template0;
+CREATE DATABASE tagsdb OWNER tagsuser ENCODING 'UTF8' TEMPLATE template0;
+CREATE DATABASE homedb OWNER homeuser ENCODING 'UTF8' TEMPLATE template0;
+CREATE DATABASE connectionsdb OWNER connectionsuser ENCODING 'UTF8' TEMPLATE template0;
+SQL
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname identitydb <<'SQL'
+REVOKE CONNECT ON DATABASE identitydb FROM PUBLIC;
+GRANT CONNECT ON DATABASE identitydb TO identityuser;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+CREATE SCHEMA identity AUTHORIZATION identityuser;
+GRANT USAGE, CREATE ON SCHEMA identity TO identityuser;
+SQL
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname movementsdb <<'SQL'
+REVOKE CONNECT ON DATABASE movementsdb FROM PUBLIC;
+GRANT CONNECT ON DATABASE movementsdb TO movementsuser;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+CREATE SCHEMA movements AUTHORIZATION movementsuser;
+GRANT USAGE, CREATE ON SCHEMA movements TO movementsuser;
+SQL
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname tagsdb <<'SQL'
+REVOKE CONNECT ON DATABASE tagsdb FROM PUBLIC;
+GRANT CONNECT ON DATABASE tagsdb TO tagsuser;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+CREATE SCHEMA tags AUTHORIZATION tagsuser;
+GRANT USAGE, CREATE ON SCHEMA tags TO tagsuser;
+SQL
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname homedb <<'SQL'
+REVOKE CONNECT ON DATABASE homedb FROM PUBLIC;
+GRANT CONNECT ON DATABASE homedb TO homeuser;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+CREATE SCHEMA home AUTHORIZATION homeuser;
+GRANT USAGE, CREATE ON SCHEMA home TO homeuser;
+SQL
+
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname connectionsdb <<'SQL'
+REVOKE CONNECT ON DATABASE connectionsdb FROM PUBLIC;
+GRANT CONNECT ON DATABASE connectionsdb TO connectionsuser;
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+CREATE SCHEMA connections AUTHORIZATION connectionsuser;
+GRANT USAGE, CREATE ON SCHEMA connections TO connectionsuser;
 SQL

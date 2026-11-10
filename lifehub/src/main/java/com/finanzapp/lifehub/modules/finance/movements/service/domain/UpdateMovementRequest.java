@@ -25,6 +25,8 @@ public class UpdateMovementRequest {
 
     private String description;
 
+    private Boolean includeInForecast;
+
     private boolean tagIdSpecified;
 
     private boolean descriptionSpecified;

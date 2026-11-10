@@ -24,4 +24,6 @@ public class CreateMovementRequest {
     private Long tagId;
 
     private String description;
+
+    private Boolean includeInForecast;
 }

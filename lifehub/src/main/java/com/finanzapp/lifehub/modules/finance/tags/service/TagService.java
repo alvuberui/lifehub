@@ -18,4 +18,10 @@ public interface TagService {
     Boolean existsByIdAndUserEmail(Long tagId, String userEmail);
 
     List<Tag> getTagsByIdsAndUserEmail(List<Long> ids, String email);
+
+    Tag createTagForOwner(CreateTagRequest createTagRequest, String ownerEmail, String actorEmail);
+
+    List<Tag> getTagsForOwner(String ownerEmail, String actorEmail);
+
+    void deleteTagForOwner(Long tagId, String ownerEmail, String actorEmail);
 }

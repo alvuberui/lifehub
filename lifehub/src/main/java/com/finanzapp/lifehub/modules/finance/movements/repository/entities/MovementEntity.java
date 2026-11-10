@@ -37,5 +37,8 @@ public class MovementEntity {
 
     @Column(length = 255, nullable = false)
     private String description;
+
+    @Column(name = "include_in_forecast", nullable = false)
+    private Boolean includeInForecast;
 }
 

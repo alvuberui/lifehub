@@ -6,7 +6,13 @@ import com.finanzapp.movements.repository.entities.MovementType;
 import com.finanzapp.movements.repository.mapper.MovementEntityMapper;
 import com.finanzapp.movements.service.MovementService;
 import com.finanzapp.movements.service.domain.*;
-import lombok.RequiredArgsConstructor;
+import com.finanzapp.lifehub.modules.connections.domain.ModulePermission;
+import com.finanzapp.lifehub.modules.connections.service.ConnectionsService;
+import com.finanzapp.lifehub.modules.identity.user.repository.UserRepository;
+import com.finanzapp.lifehub.modules.identity.user.repository.entities.UserEntity;
+import com.finanzapp.tags.repository.TagRepository;
+import com.finanzapp.tags.repository.entities.TagEntity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,13 +23,45 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 public class MovementServiceImpl implements MovementService {
 
     private final MovementRepository movementRepository;
     private final MovementEntityMapper movementMapper;
     private final UsersClientImpl usersClient;
     private final TagsClientImpl tagsClient;
+    private final ConnectionsService connectionsService;
+    private final UserRepository userRepository;
+    private final TagRepository tagRepository;
+
+    @Autowired
+    public MovementServiceImpl(
+            MovementRepository movementRepository,
+            MovementEntityMapper movementMapper,
+            UsersClientImpl usersClient,
+            TagsClientImpl tagsClient,
+            ConnectionsService connectionsService,
+            UserRepository userRepository,
+            TagRepository tagRepository) {
+        this.movementRepository = movementRepository;
+        this.movementMapper = movementMapper;
+        this.usersClient = usersClient;
+        this.tagsClient = tagsClient;
+        this.connectionsService = connectionsService;
+        this.userRepository = userRepository;
+        this.tagRepository = tagRepository;
+    }
+
+    /**
+     * Compatibility constructor for the existing unit tests and isolated finance usage.
+     * Shared summaries use the full Spring-managed constructor above.
+     */
+    public MovementServiceImpl(
+            MovementRepository movementRepository,
+            MovementEntityMapper movementMapper,
+            UsersClientImpl usersClient,
+            TagsClientImpl tagsClient) {
+        this(movementRepository, movementMapper, usersClient, tagsClient, null, null, null);
+    }
 
     @Override
     public List<Integer> getYearsFromMovements(String userEmail) {
@@ -338,28 +376,51 @@ public class MovementServiceImpl implements MovementService {
 
     @Override
     public Movement createMovement(CreateMovementRequest movement, String userEmail, String bearerToken) {
+        return createMovement(movement, userEmail, userEmail, bearerToken);
+    }
+
+    @Override
+    public Movement createMovement(CreateMovementRequest movement, String actorEmail, String ownerEmail, String bearerToken) {
+        String targetEmail = ownerEmail == null || ownerEmail.isBlank() ? actorEmail : ownerEmail.trim();
+        boolean creatingForAnotherUser = !targetEmail.equalsIgnoreCase(actorEmail);
+
+        if (creatingForAnotherUser
+                && (connectionsService == null
+                || !connectionsService.hasPermission(targetEmail, actorEmail, "finance", ModulePermission.ADMIN))) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "Necesitas permiso de administración para crear movimientos para otra persona.");
+        }
+
         if (movement.getAmount() != null && movement.getAmount().signum() <= 0) {
             throw new IllegalArgumentException("La cantidad debe de ser mayor que 0");
         }
         if(movement.getTagId() != null) {
-            if (!Boolean.TRUE.equals(tagsClient.existsByIdAndUserEmail(movement.getTagId(), bearerToken))) {
+            boolean tagExists = tagRepository != null
+                    ? tagRepository.existsByIdAndUserEmailAndDeletedFalse(movement.getTagId(), targetEmail)
+                    : Boolean.TRUE.equals(tagsClient.existsByIdAndUserEmail(movement.getTagId(), bearerToken));
+            if (!tagExists) {
                 throw new IllegalArgumentException("La etiqueta indicada no existe");
             }
         }
-        return this.movementMapper.toDomain( this.movementRepository.save(this.movementMapper.toEntity(movement, userEmail)));
+        if (movement.getIncludeInForecast() == null) {
+            movement.setIncludeInForecast(Boolean.TRUE);
+        }
+        return this.movementMapper.toDomain(this.movementRepository.save(this.movementMapper.toEntity(movement, targetEmail)));
     }
 
     @Override
     public Movement updateMovement(Long movementId, UpdateMovementRequest movement, String userEmail, String bearerToken) {
-        MovementEntity existingMovement = this.movementRepository.findByIdAndUserEmail(movementId, userEmail)
+        MovementEntity existingMovement = this.movementRepository.findById(movementId)
                 .orElseThrow(() -> new IllegalArgumentException("Movimiento no encontrado"));
+        requireMovementPermission(existingMovement, userEmail, ModulePermission.EDIT);
 
         if (movement.getAmount() != null && movement.getAmount().signum() <= 0) {
             throw new IllegalArgumentException("La cantidad debe de ser mayor que 0");
         }
 
         if(movement.getTagId() != null) {
-            if (!Boolean.TRUE.equals(tagsClient.existsByIdAndUserEmail(movement.getTagId(), bearerToken))) {
+            if (!tagExistsForOwner(movement.getTagId(), existingMovement.getUserEmail())) {
                 throw new IllegalArgumentException("La etiqueta indicada no existe");
             }
         }
@@ -376,6 +437,9 @@ public class MovementServiceImpl implements MovementService {
         if (movement.isDescriptionSpecified()) {
             existingMovement.setDescription(movement.getDescription());
         }
+        if (movement.getIncludeInForecast() != null) {
+            existingMovement.setIncludeInForecast(movement.getIncludeInForecast());
+        }
         if (movement.getMovementType() != null) {
             existingMovement.setMovementType( MovementType.valueOf( movement.getMovementType().name() ) );
         }
@@ -386,15 +450,17 @@ public class MovementServiceImpl implements MovementService {
 
     @Override
     public Movement getMovementById(Long movementId, String userEmail) {
-        MovementEntity movementEntity = this.movementRepository.findByIdAndUserEmail(movementId, userEmail)
+        MovementEntity movementEntity = this.movementRepository.findById(movementId)
                 .orElseThrow(() -> new IllegalArgumentException("Movimiento no encontrado"));
+        requireMovementPermission(movementEntity, userEmail, ModulePermission.DETAIL_READ);
         return this.movementMapper.toDomain(movementEntity);
     }
 
     @Override
     public void deleteMovementById(Long movementId, String userEmail) {
-        MovementEntity movementEntity = this.movementRepository.findByIdAndUserEmail(movementId, userEmail)
+        MovementEntity movementEntity = this.movementRepository.findById(movementId)
                 .orElseThrow(() -> new IllegalArgumentException("Movimiento no encontrado"));
+        requireMovementPermission(movementEntity, userEmail, ModulePermission.EDIT);
         this.movementRepository.delete(movementEntity);
     }
 
@@ -454,6 +520,76 @@ public class MovementServiceImpl implements MovementService {
         return initialWealth
                 .add(totalBenefits)
                 .subtract(totalExpenses);
+    }
+
+    @Override
+    public SharedFinanceSummary getSharedFinanceSummary(String userEmail) {
+        BigDecimal personal = calculateNetWorthWithoutToken(userEmail);
+        List<SharedFinanceSummary.SharedFinanceMember> members = connectionsService
+                .usersSharingModule(userEmail, "finance", ModulePermission.SUMMARY_READ)
+                .stream()
+                .map(email -> new SharedFinanceSummary.SharedFinanceMember(email, calculateNetWorthWithoutToken(email)))
+                .toList();
+        BigDecimal shared = members.stream().map(SharedFinanceSummary.SharedFinanceMember::netWorth)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new SharedFinanceSummary(personal, shared, personal.add(shared), members);
+    }
+
+    @Override
+    @Transactional(readOnly = true, transactionManager = "movementsTransactionManager")
+    public SharedFinanceDetails getSharedFinanceDetails(String viewerEmail, LocalDate from, LocalDate to) {
+        List<String> members = connectionsService.usersSharingModule(viewerEmail, "finance", ModulePermission.DETAIL_READ);
+        List<String> editableMembers = connectionsService.usersSharingModule(viewerEmail, "finance", ModulePermission.EDIT);
+        List<String> adminMembers = connectionsService.usersSharingModule(viewerEmail, "finance", ModulePermission.ADMIN);
+        List<SharedFinanceDetails.SharedFinanceMovement> movements = new java.util.ArrayList<>();
+
+        for (String ownerEmail : members) {
+            List<Movement> ownerMovements = movementMapper.toDomainList(
+                    movementRepository.findByUserEmailAndDateBetweenOrderByDate(ownerEmail, from, to)
+            );
+            List<Long> tagIds = ownerMovements.stream().map(Movement::getTagId).filter(java.util.Objects::nonNull).distinct().toList();
+            Map<Long, TagEntity> tagsById = tagIds.isEmpty()
+                    ? Map.of()
+                    : tagRepository.findByUserEmailAndIdInAndDeletedFalse(ownerEmail, tagIds).stream()
+                    .collect(java.util.stream.Collectors.toMap(TagEntity::getId, tag -> tag));
+
+            for (Movement movement : ownerMovements) {
+                TagEntity tag = movement.getTagId() == null ? null : tagsById.get(movement.getTagId());
+                movements.add(new SharedFinanceDetails.SharedFinanceMovement(
+                        movement.getId(), ownerEmail, movement.getMovementType().name(), movement.getAmount(), movement.getDate(),
+                        movement.getTagId(), tag == null ? null : tag.getName(), tag == null ? null : tag.getColor(),
+                        movement.getDescription(), movement.getIncludeInForecast()));
+            }
+        }
+
+        movements.sort(java.util.Comparator.comparing(SharedFinanceDetails.SharedFinanceMovement::date)
+                .thenComparing(SharedFinanceDetails.SharedFinanceMovement::id));
+        return new SharedFinanceDetails(members, editableMembers, adminMembers, movements);
+    }
+
+    private boolean tagExistsForOwner(Long tagId, String ownerEmail) {
+        return tagRepository != null && tagRepository.existsByIdAndUserEmailAndDeletedFalse(tagId, ownerEmail);
+    }
+
+    private void requireMovementPermission(MovementEntity movement, String actorEmail, ModulePermission required) {
+        if (movement.getUserEmail().equalsIgnoreCase(actorEmail)) return;
+        if (connectionsService == null || !connectionsService.hasPermission(movement.getUserEmail(), actorEmail, "finance", required)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "No tienes permiso para acceder a este movimiento.");
+        }
+    }
+
+    private BigDecimal calculateNetWorthWithoutToken(String userEmail) {
+        UserEntity user = userRepository.findByEmail(userEmail).orElse(null);
+        BigDecimal initialWealth = user == null || user.getInitialWealth() == null ? BigDecimal.ZERO : user.getInitialWealth();
+        List<Movement> allMovements = movementMapper.toDomainList(movementRepository.findByUserEmail(userEmail));
+        BigDecimal benefits = sumByType(allMovements, com.finanzapp.movements.service.domain.MovementType.BENEFIT);
+        BigDecimal expenses = allMovements.stream()
+                .filter(m -> m.getMovementType() == com.finanzapp.movements.service.domain.MovementType.ESSENTIAL_EXPENSE || m.getMovementType() == com.finanzapp.movements.service.domain.MovementType.DISCRETIONARY_EXPENSE)
+                .map(m -> m.getAmount() == null ? BigDecimal.ZERO : m.getAmount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return initialWealth.add(benefits).subtract(expenses);
     }
 
     private BigDecimal sumByType(List<Movement> movements, com.finanzapp.movements.service.domain.MovementType type) {

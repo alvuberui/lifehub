@@ -84,4 +84,30 @@ public class TagController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/shared/{ownerEmail}")
+    public ResponseEntity<List<TagDto>> getSharedTags(
+            @PathVariable String ownerEmail,
+            @AuthenticationPrincipal Jwt jwt) {
+        String actorEmail = jwt.getClaimAsString("email");
+        return ResponseEntity.ok(tagService.getTagsForOwner(ownerEmail, actorEmail).stream().map(tagMapper::toTagDto).toList());
+    }
+
+    @PostMapping("/shared/{ownerEmail}")
+    public ResponseEntity<TagDto> createSharedTag(
+            @PathVariable String ownerEmail,
+            @Valid @RequestBody CreateTagRequestDto request,
+            @AuthenticationPrincipal Jwt jwt) {
+        String actorEmail = jwt.getClaimAsString("email");
+        return ResponseEntity.ok(tagMapper.toTagDto(tagService.createTagForOwner(tagMapper.toCreateTagRequest(request), ownerEmail, actorEmail)));
+    }
+
+    @DeleteMapping("/shared/{ownerEmail}/{tagId}")
+    public ResponseEntity<Void> deleteSharedTag(
+            @PathVariable String ownerEmail,
+            @PathVariable Long tagId,
+            @AuthenticationPrincipal Jwt jwt) {
+        tagService.deleteTagForOwner(tagId, ownerEmail, jwt.getClaimAsString("email"));
+        return ResponseEntity.noContent().build();
+    }
+
 }

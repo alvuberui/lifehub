@@ -51,62 +51,55 @@ services:
     networks: [internal]
     mem_limit: 768m
 
-  postgres-user:
+  postgres-lifehub:
     image: postgres:16
     environment:
-      POSTGRES_DB: userdb
-      POSTGRES_USER: useruser
+      POSTGRES_DB: lifehub
+      POSTGRES_USER: lifehubuser
       POSTGRES_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
+      IDENTITY_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
+      MOVEMENTS_DB_PASSWORD: ${MOVEMENTS_DB_PASSWORD:?MOVEMENTS_DB_PASSWORD is required}
+      TAGS_DB_PASSWORD: ${TAGS_DB_PASSWORD:?TAGS_DB_PASSWORD is required}
+      HOME_DB_PASSWORD: ${HOME_DB_PASSWORD:?HOME_DB_PASSWORD is required}
+      CONNECTIONS_DB_PASSWORD: ${CONNECTIONS_DB_PASSWORD:?CONNECTIONS_DB_PASSWORD is required}
     volumes:
-      - postgres_user_data:/var/lib/postgresql/data
+      - postgres_lifehub_data:/var/lib/postgresql/data
+      - ./postgres/init/lifehub:/docker-entrypoint-initdb.d:ro
     restart: unless-stopped
     networks: [internal]
-    mem_limit: 256m
+    mem_limit: 512m
     ports:
-      - "127.0.0.1:5435:5432"
+      - "127.0.0.1:5437:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U useruser -d userdb"]
+      test: ["CMD-SHELL", "pg_isready -U lifehubuser -d lifehub"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  postgres-movements:
+  # Se ejecuta también sobre volúmenes PostgreSQL ya existentes. Es idempotente:
+  # crea connectionsdb y connectionsuser solo si aún no existen.
+  postgres-lifehub-bootstrap:
     image: postgres:16
+    depends_on:
+      postgres-lifehub:
+        condition: service_healthy
     environment:
-      POSTGRES_DB: movementsdb
-      POSTGRES_USER: movementsuser
-      POSTGRES_PASSWORD: ${MOVEMENTS_DB_PASSWORD:?MOVEMENTS_DB_PASSWORD is required}
-    volumes:
-      - postgres_movements_data:/var/lib/postgresql/data
-    restart: unless-stopped
+      PGPASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
+      CONNECTIONS_DB_PASSWORD: ${CONNECTIONS_DB_PASSWORD:?CONNECTIONS_DB_PASSWORD is required}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        role_exists="$$(psql -h postgres-lifehub -U lifehubuser -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname = 'connectionsuser';" | tr -d '[:space:]')"
+        if [ "$$role_exists" != "1" ]; then
+          psql -h postgres-lifehub -U lifehubuser -d postgres -v ON_ERROR_STOP=1 -v connections_password="$$CONNECTIONS_DB_PASSWORD" -c "CREATE ROLE connectionsuser LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD :'connections_password';"
+        fi
+        database_exists="$$(psql -h postgres-lifehub -U lifehubuser -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'connectionsdb';" | tr -d '[:space:]')"
+        if [ "$$database_exists" != "1" ]; then
+          psql -h postgres-lifehub -U lifehubuser -d postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE connectionsdb OWNER connectionsuser ENCODING 'UTF8' TEMPLATE template0;"
+        fi
+        psql -h postgres-lifehub -U lifehubuser -d connectionsdb -v ON_ERROR_STOP=1 -c "REVOKE CONNECT ON DATABASE connectionsdb FROM PUBLIC; GRANT CONNECT ON DATABASE connectionsdb TO connectionsuser; REVOKE ALL ON SCHEMA public FROM PUBLIC; CREATE SCHEMA IF NOT EXISTS connections AUTHORIZATION connectionsuser; GRANT USAGE, CREATE ON SCHEMA connections TO connectionsuser;"
+    restart: "no"
     networks: [internal]
-    mem_limit: 256m
-    ports:
-      - "127.0.0.1:5434:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U movementsuser -d movementsdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  postgres-tags:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: tagsdb
-      POSTGRES_USER: tagsuser
-      POSTGRES_PASSWORD: ${TAGS_DB_PASSWORD:?TAGS_DB_PASSWORD is required}
-    volumes:
-      - postgres_tag_data:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks: [internal]
-    mem_limit: 256m
-    ports:
-      - "127.0.0.1:5436:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tagsuser -d tagsdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
   lifehub:
     build:
@@ -118,11 +111,23 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
-      USER_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
+      IDENTITY_DB_PASSWORD: ${USER_DB_PASSWORD:?USER_DB_PASSWORD is required}
       MOVEMENTS_DB_PASSWORD: ${MOVEMENTS_DB_PASSWORD:?MOVEMENTS_DB_PASSWORD is required}
       TAGS_DB_PASSWORD: ${TAGS_DB_PASSWORD:?TAGS_DB_PASSWORD is required}
+      HOME_DB_PASSWORD: ${HOME_DB_PASSWORD:?HOME_DB_PASSWORD is required}
+      CONNECTIONS_DB_PASSWORD: ${CONNECTIONS_DB_PASSWORD:?CONNECTIONS_DB_PASSWORD is required}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?INTERNAL_SERVICE_TOKEN is required}
       LIFEHUB_INTERNAL_BASE_URL: http://lifehub:8080
+      MONTHLY_REPORT_ENABLED: ${MONTHLY_REPORT_ENABLED:-true}
+      MONTHLY_REPORT_DRY_RUN: ${MONTHLY_REPORT_DRY_RUN:-false}
+      MONTHLY_REPORT_TEST_ENDPOINT_ENABLED: ${MONTHLY_REPORT_TEST_ENDPOINT_ENABLED:-false}
+      MONTHLY_REPORT_TIME_ZONE: ${MONTHLY_REPORT_TIME_ZONE:-Europe/Madrid}
+      MONTHLY_REPORT_CRON: ${MONTHLY_REPORT_CRON:-0 0 8 * * *}
+      BREVO_FROM_EMAIL: ${BREVO_FROM_EMAIL:-}
+      BREVO_FROM_NAME: ${BREVO_FROM_NAME:-LifeHub}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+    volumes:
+      - lifehub_home_attachments:/app/.local/home-attachments
     restart: unless-stopped
     networks: [internal]
     mem_limit: 768m
@@ -130,18 +135,15 @@ services:
     depends_on:
       keycloak:
         condition: service_started
-      postgres-user:
+      postgres-lifehub:
         condition: service_healthy
-      postgres-movements:
-        condition: service_healthy
-      postgres-tags:
-        condition: service_healthy
+      postgres-lifehub-bootstrap:
+        condition: service_completed_successfully
 
 volumes:
   kcdata:
-  postgres_user_data:
-  postgres_movements_data:
-  postgres_tag_data:
+  postgres_lifehub_data:
+  lifehub_home_attachments:
 
 networks:
   internal:

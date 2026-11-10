@@ -13,7 +13,7 @@ lifehub:
     hibernate:
       ddl-auto: create-drop
   datasource:
-    user:
+    identity:
       url: jdbc:h2:mem:lifehub_user;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS identity
       username: sa
       password:
@@ -25,6 +25,11 @@ lifehub:
       driver-class-name: org.h2.Driver
     tags:
       url: jdbc:h2:mem:lifehub_tags;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS tags
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
+    home:
+      url: jdbc:h2:mem:lifehub_home;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;INIT=CREATE SCHEMA IF NOT EXISTS home
       username: sa
       password:
       driver-class-name: org.h2.Driver

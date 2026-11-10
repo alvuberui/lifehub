@@ -35,9 +35,9 @@ Next.js + NextAuth (frontend, 3000)
    ▼
 LifeHub / FinanzApp (8080)
    └── /user/*, /movement/*, /tag/*
-                                      ├── identity   ──► PostgreSQL lifehub.identity
-                                      ├── movements  ──► PostgreSQL lifehub.movements
-                                      └── tags       ──► PostgreSQL lifehub.tags
+                                      ├── identity   ──► PostgreSQL LifeHub / identitydb
+                                      ├── movements  ──► PostgreSQL LifeHub / movementsdb
+                                      └── tags       ──► PostgreSQL LifeHub / tagsdb
 
 Keycloak (8081) ──► PostgreSQL keycloak
 ```
@@ -50,8 +50,9 @@ Componentes:
 - **Backend HTTP:** LifeHub, punto de entrada HTTP de la aplicación.
 - **Backend:** `lifehub` como monolito modular Spring Boot. `identity`,
   `movements` y `tags` son módulos internos de LifeHub/FinanzApp.
-- **Persistencia:** PostgreSQL 16 en dos instancias: una para Keycloak y otra
-  para LifeHub, con los esquemas `identity`, `movements` y `tags`.
+- **Persistencia:** PostgreSQL 16 en dos instancias: una exclusiva para
+  Keycloak (`keycloak`) y otra para LifeHub (`identitydb`, `movementsdb`,
+  `tagsdb`). Cada módulo conserva su esquema interno y su usuario propietario.
 - **Esquema:** Flyway; Hibernate utiliza `ddl-auto: validate` y no modifica
   automáticamente las tablas.
 
@@ -120,6 +121,11 @@ El lanzador crea estas credenciales únicamente para desarrollo:
 ```text
 Email:      local@finanzapp.test
 Contraseña: localpass123!
+
+Email	Contraseña
+ana@finanzapp.test	Test1234!
+carlos@finanzapp.test	Test1234!
+lucia@finanzapp.test	Test1234!
 ```
 
 No deben utilizarse en producción.
@@ -193,10 +199,9 @@ Variables de `infra/.env`:
 | `KEYCLOAK_ADMIN` | Administrador inicial de Keycloak |
 | `KEYCLOAK_ADMIN_PASSWORD` | Contraseña inicial de Keycloak |
 | `KEYCLOAK_HOSTNAME` | Host anunciado por Keycloak |
-| `LIFEHUB_DB_PASSWORD` | Contraseña local de `lifehub` (opcional; tiene valor por defecto local) |
-| `USER_DB_PASSWORD` | Contraseña legacy de `userdb` |
-| `MOVEMENTS_DB_PASSWORD` | Contraseña legacy de `movementsdb` |
-| `TAGS_DB_PASSWORD` | Contraseña legacy de `tagsdb` |
+| `USER_DB_PASSWORD` | Contraseña existente de PostgreSQL LifeHub y de `identityuser` (nombre conservado por compatibilidad) |
+| `MOVEMENTS_DB_PASSWORD` | Contraseña del usuario `movementsuser` |
+| `TAGS_DB_PASSWORD` | Contraseña del usuario `tagsuser` |
 | `INTERNAL_SERVICE_TOKEN` | Token privado para la ruta interna de etiquetas |
 
 `infra/.env` y `infra/.env.local` no deben subirse al repositorio.
@@ -223,14 +228,14 @@ El sistema utiliza PostgreSQL para la aplicación. H2 se utiliza únicamente en
 tests concretos.
 
 - `keycloak`: usuarios, clientes y configuración de Keycloak.
-- `lifehub.identity`: perfiles y configuración de usuarios.
-- `lifehub.movements`: ingresos, gastos e inversiones.
-- `lifehub.tags`: etiquetas y operaciones reintentables de borrado.
+- `identitydb.identity`: perfiles y configuración de usuarios.
+- `movementsdb.movements`: ingresos, gastos e inversiones.
+- `tagsdb.tags`: etiquetas y operaciones reintentables de borrado.
 
 En local, Docker mantiene `keycloak` en la instancia `postgres-keycloak` y
-`lifehub` en la instancia `postgres-lifehub`, ambas dentro del proyecto Compose
-`finanzapp-local`. Las bases antiguas y sus volúmenes se conservan como
-respaldo de rollback.
+las bases de LifeHub en la instancia `postgres-lifehub`, ambas dentro del
+proyecto Compose `finanzapp-local`. La base antigua `lifehub` y sus volúmenes
+se conservan como respaldo de rollback.
 
 Reglas de seguridad de datos:
 
@@ -359,7 +364,7 @@ docker compose ps
 
 Antes de actualizar una instalación existente:
 
-1. Hacer backup de `userdb`, `movementsdb`, `tagsdb` y Keycloak.
+1. Hacer backup de Keycloak, de `lifehub` y de cada esquema de LifeHub.
 2. Conservar los volúmenes Docker existentes.
 3. Comprobar que `.env` contiene las contraseñas actuales.
 4. Verificar que `INTERNAL_SERVICE_TOKEN` coincide con el configurado para LifeHub.
