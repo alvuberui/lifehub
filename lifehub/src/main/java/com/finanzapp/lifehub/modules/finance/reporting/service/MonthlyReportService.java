@@ -278,6 +278,15 @@ public class MonthlyReportService {
         return """
                 <!doctype html>
                 <html lang="es">
+                <head>
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <style>
+                    @media only screen and (max-width:620px) {
+                      .metric-card { display:block !important; width:100%% !important; box-sizing:border-box !important; margin-bottom:8px !important; }
+                      .metric-card-value { font-size:18px !important; }
+                    }
+                  </style>
+                </head>
                 <body style="margin:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a">
                   <div style="max-width:680px;margin:0 auto;padding:28px 16px">
                     <div style="background:linear-gradient(135deg,#0f172a,#164e63);border-radius:24px;padding:32px;color:white">
@@ -327,7 +336,7 @@ public class MonthlyReportService {
     }
 
     private String card(String title, String value, String background, String color) {
-        return "<td width=\"33%%\" style=\"padding:8px;background:%s;border-radius:14px;color:%s\"><div style=\"font-size:12px\">%s</div><div style=\"font-size:20px;font-weight:700;margin-top:6px\">%s</div></td>"
+        return "<td class=\"metric-card\" width=\"33%%\" style=\"padding:8px;background:%s;border-radius:14px;color:%s;vertical-align:top\"><div style=\"font-size:12px\">%s</div><div class=\"metric-card-value\" style=\"font-size:20px;font-weight:700;margin-top:6px\">%s</div></td>"
                 .formatted(background, color, escape(title), escape(value));
     }
 
