@@ -7,7 +7,7 @@ import lombok.*;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "module_permissions", schema = "connections", uniqueConstraints = @UniqueConstraint(name = "module_permissions_unique_module", columnNames = {"connection_id", "module_key"}))
+@Table(name = "module_permissions", schema = "connections", uniqueConstraints = @UniqueConstraint(name = "module_permissions_unique_direction", columnNames = {"connection_id", "module_key", "granted_by_email"}))
 @Getter
 @Setter
 @Builder
