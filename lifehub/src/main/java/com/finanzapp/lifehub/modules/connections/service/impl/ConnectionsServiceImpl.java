@@ -176,8 +176,15 @@ public class ConnectionsServiceImpl implements ConnectionsService {
         String moduleKey = normalizeModule(module);
         ConnectionEntity connection = getConnectionForActor(actor, connectionId);
         ModulePermission safePermission = permission == null ? ModulePermission.NONE : permission;
-        ModulePermissionEntity entity = permissionRepository.findByConnectionIdAndModuleKey(connection.getId(), moduleKey)
-                .orElseGet(() -> ModulePermissionEntity.builder().connectionId(connection.getId()).moduleKey(moduleKey).build());
+        // Los permisos son direccionales: esta fila representa únicamente lo que
+        // el actor comparte con la otra persona. Nunca debe reutilizar la fila
+        // que representa la dirección contraria.
+        ModulePermissionEntity entity = permissionRepository.findByConnectionIdAndModuleKeyAndGrantedByEmail(connection.getId(), moduleKey, actor)
+                .orElseGet(() -> ModulePermissionEntity.builder()
+                        .connectionId(connection.getId())
+                        .moduleKey(moduleKey)
+                        .grantedByEmail(actor)
+                        .build());
         entity.setPermission(safePermission);
         entity.setGrantedByEmail(actor);
         entity.setUpdatedAt(OffsetDateTime.now());
@@ -192,8 +199,8 @@ public class ConnectionsServiceImpl implements ConnectionsService {
         if (required == null || required == ModulePermission.NONE) return true;
         Optional<ConnectionEntity> connection = findConnection(ownerEmail, viewerEmail);
         if (connection.isEmpty()) return false;
-        return permissionRepository.findByConnectionIdAndModuleKey(connection.get().getId(), normalizeModule(module))
-                .filter(permission -> normalizeEmail(permission.getGrantedByEmail()).equals(normalizeEmail(ownerEmail)))
+        return permissionRepository.findByConnectionIdAndModuleKeyAndGrantedByEmail(
+                        connection.get().getId(), normalizeModule(module), normalizeEmail(ownerEmail))
                 .map(permission -> permissionAllows(permission.getPermission(), required))
                 .orElse(false);
     }

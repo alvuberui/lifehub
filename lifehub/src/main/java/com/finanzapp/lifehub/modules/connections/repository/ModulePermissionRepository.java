@@ -8,5 +8,5 @@ import java.util.Optional;
 
 public interface ModulePermissionRepository extends JpaRepository<ModulePermissionEntity, Long> {
     List<ModulePermissionEntity> findByConnectionId(Long connectionId);
-    Optional<ModulePermissionEntity> findByConnectionIdAndModuleKey(Long connectionId, String moduleKey);
+    Optional<ModulePermissionEntity> findByConnectionIdAndModuleKeyAndGrantedByEmail(Long connectionId, String moduleKey, String grantedByEmail);
 }
